@@ -1,0 +1,14 @@
+python-dotenv
+json5
+pydantic
+fastapi
+uvicorn
+python-jose[cryptography]
+python-multipart
+passlib[bcrypt]
+jinja2
+aiofiles
+python-multipart
+SQLAlchemy
+psycopg2-binary
+alembic

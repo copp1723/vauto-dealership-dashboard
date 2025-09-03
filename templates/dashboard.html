@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dealership Dashboard - Vehicle Processing Center</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-car"></i>
+                    <h1>Vehicle Processing Dashboard</h1>
+                </div>
+                <div class="header-actions">
+                    <div class="user-info">
+                        <span class="user-name">
+                            <i class="fas fa-user"></i> 
+                            <span id="username">Loading...</span>
+                        </span>
+                        <span class="store-id">
+                            <i class="fas fa-store"></i> 
+                            Store: <span id="store-id">Loading...</span>
+                        </span>
+                    </div>
+                    <button class="btn btn-outline" onclick="refreshData()">
+                        <i class="fas fa-sync-alt"></i> Refresh
+                    </button>
+                    <button class="btn btn-danger" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Statistics Section -->
+            <section class="statistics-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-car"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="total-vehicles">-</div>
+                            <div class="stat-label">Total Vehicles</div>
+                        </div>
+                    </div>
+                    
+
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon info">
+                            <i class="fas fa-edit"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="descriptions-updated">-</div>
+                            <div class="stat-label">Descriptions Updated</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon warning">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="total-features">-</div>
+                            <div class="stat-label">Features Marked</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon premium">
+                            <i class="fas fa-certificate"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="no-fear-certs">-</div>
+                            <div class="stat-label">NO FEAR Certificates</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon activity">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <div class="stat-content">
+                            <div class="stat-number" id="featured-count">-</div>
+                            <div class="stat-label">Featured Vehicles</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Search and Filter Section -->
+            <section class="search-section">
+                <div class="search-container">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Search by stock number..." autocomplete="off">
+                        <button class="search-clear" id="search-clear" onclick="clearSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="search-filters">
+                        <select id="status-filter">
+                            <option value="">All Status</option>
+                            <option value="success">Successful</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                        <select id="description-filter">
+                            <option value="">All Descriptions</option>
+                            <option value="updated">Updated</option>
+                            <option value="none">Not Updated</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vehicles Section -->
+            <section class="vehicles-section">
+                <div class="section-header">
+                    <h2>Vehicle Processing Records</h2>
+                    <div class="section-actions">
+                        <span class="results-count" id="results-count">Loading...</span>
+                    </div>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-state" id="loading-state">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <p>Loading vehicle data...</p>
+                </div>
+
+                <!-- Error State -->
+                <div class="error-state" id="error-state" style="display: none;">
+                    <div class="error-icon">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <p id="error-message">Failed to load vehicle data</p>
+                    <button class="btn btn-primary" onclick="loadVehicles()">Try Again</button>
+                </div>
+
+                <!-- Vehicles Grid -->
+                <div id="vehicles-grid">
+                    <!-- Vehicle cards will be dynamically populated -->
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination" id="pagination" style="display: none;">
+                    <button class="pagination-btn" id="prev-btn" onclick="changePage(-1)">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <div class="pagination-info">
+                        Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+                    </div>
+                    <button class="pagination-btn" id="next-btn" onclick="changePage(1)">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </section>
+
+
+        </div>
+    </main>
+
+    <!-- Vehicle Details Modal -->
+    <div class="modal" id="vehicle-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Vehicle Details</h3>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Vehicle details will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container">
+        <!-- Toast notifications will appear here -->
+    </div>
+
+    <script src="/static/js/dashboard.js?v=20250903"></script>
+    <script>
+        function logout() {
+            // Remove token from localStorage
+            localStorage.removeItem('token');
+            
+            // Redirect to login page
+            window.location.href = '/login';
+        }
+        
+        // Load user information
+        async function loadUserInfo() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const response = await authenticatedFetch('/api/me');
+                const userData = await response.json();
+                
+                if (userData) {
+                    document.getElementById('username').textContent = userData.username || 'Unknown';
+                    document.getElementById('store-id').textContent = userData.store_id || 'Unknown';
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+                // Redirect to login if there's an error
+                window.location.href = '/login';
+            }
+        }
+        
+        // Check if user is authenticated on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            // Load user info
+            loadUserInfo();
+        });
+    </script>
+</body>
+</html>
