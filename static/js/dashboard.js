@@ -453,9 +453,17 @@ class VehicleDashboard {
 
         modalTitle.textContent = vehicle.vehicle_name ? `${vehicle.vehicle_name} Details` : `Vehicle #${vehicle.stock_number} Details`;
 
-        // Show delete button
+        // Show delete button only for completed vehicles (not processing or pending)
         if (deleteBtn) {
-            deleteBtn.style.display = 'inline-block';
+            const isProcessing = vehicle.processing_status === 'processing';
+            const isPending = vehicle.processing_status === 'pending';
+            
+            // Only show delete button for completed vehicles (successful or failed, but not processing/pending)
+            if (!isProcessing && !isPending) {
+                deleteBtn.style.display = 'inline-block';
+            } else {
+                deleteBtn.style.display = 'none';
+            }
         }
 
         // Parse starred features safely
@@ -852,6 +860,57 @@ class VehicleDashboard {
         }).format(Math.abs(difference));
         return difference > 0 ? `+${formatted}` : `-${formatted}`;
     }
+
+    async deleteCurrentVehicle() {
+        if (!this.currentVehicle) {
+            this.showToast('No vehicle selected for deletion', 'error');
+            return;
+        }
+
+        try {
+            const response = await this.authenticatedFetch(`/api/vehicle/${this.currentVehicle.id}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.showToast(data.message || 'Vehicle deleted successfully', 'success');
+                this.closeModal();
+                this.refreshData(); // Refresh the dashboard data
+            } else {
+                throw new Error(data.error || 'Failed to delete vehicle');
+            }
+        } catch (error) {
+            console.error('Error deleting vehicle:', error);
+            this.showToast('Failed to delete vehicle: ' + error.message, 'error');
+        }
+    }
+
+    authenticatedFetch(url, options = {}) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+            return;
+        }
+        
+        const authOptions = {
+            ...options,
+            headers: {
+                ...options.headers,
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        };
+        
+        return fetch(url, authOptions).then(response => {
+            if (response.status === 401 || response.status === 403) {
+                localStorage.removeItem('token');
+                window.location.href = '/login';
+            }
+            return response;
+        });
+    }
 }
 
 // Global functions for HTML onclick handlers
@@ -1100,3 +1159,31 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     document.head.appendChild(style);
 });
+
+// Global delete functions
+function deleteVehicle() {
+    if (!dashboard.currentVehicle) {
+        dashboard.showToast('No vehicle selected for deletion', 'error');
+        return;
+    }
+    
+    const vehicle = dashboard.currentVehicle;
+    const vehicleName = vehicle.vehicle_name || `Vehicle #${vehicle.stock_number}`;
+    
+    // Check if vehicle is in a state that allows deletion
+    const isProcessing = vehicle.processing_status === 'processing';
+    const isPending = vehicle.processing_status === 'pending';
+    
+    if (isProcessing || isPending) {
+        dashboard.showToast('Cannot delete vehicles that are currently processing or pending', 'error');
+        return;
+    }
+    
+    // Create a more detailed confirmation message
+    const statusText = vehicle.processing_successful ? 'Successfully Processed' : 'Failed Processing';
+    const confirmMessage = `Are you sure you want to delete ${vehicleName}?\n\nStatus: ${statusText}\nProcessing Date: ${vehicle.processing_date || 'N/A'}\n\n⚠️ This action cannot be undone!`;
+    
+    if (confirm(confirmMessage)) {
+        dashboard.deleteCurrentVehicle();
+    }
+}
