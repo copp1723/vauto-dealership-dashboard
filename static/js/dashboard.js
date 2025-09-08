@@ -38,9 +38,14 @@ class VehicleDashboard {
         this.vehicles = [];
         this.statistics = {};
         this.recentActivity = [];
+        this.currentVehicle = null;
         
         this.initializeEventListeners();
         this.loadInitialData();
+    }
+
+    authenticatedFetch(url, options = {}) {
+        return authenticatedFetch(url, options);
     }
 
     initializeEventListeners() {
@@ -441,8 +446,17 @@ class VehicleDashboard {
         const modal = document.getElementById('vehicle-modal');
         const modalTitle = document.getElementById('modal-title');
         const modalBody = document.getElementById('modal-body');
+        const deleteBtn = document.getElementById('delete-vehicle-btn');
+
+        // Store current vehicle for delete functionality
+        this.currentVehicle = vehicle;
 
         modalTitle.textContent = vehicle.vehicle_name ? `${vehicle.vehicle_name} Details` : `Vehicle #${vehicle.stock_number} Details`;
+
+        // Show delete button
+        if (deleteBtn) {
+            deleteBtn.style.display = 'inline-block';
+        }
 
         // Parse starred features safely
         const starredFeatures = Array.isArray(vehicle.starred_features) ? vehicle.starred_features : [];
@@ -568,6 +582,14 @@ class VehicleDashboard {
                 </div>
             ` : ''}
 
+            ${(vehicle.book_values_before_processing && Object.keys(vehicle.book_values_before_processing).length > 0) || 
+              (vehicle.book_values_after_processing && Object.keys(vehicle.book_values_after_processing).length > 0) ? `
+                <div class="modal-section">
+                    <h4><i class="fas fa-calculator"></i> Book Values</h4>
+                    ${this.renderBookValues(vehicle.book_values_before_processing, vehicle.book_values_after_processing)}
+                </div>
+            ` : ''}
+
             ${vehicle.no_fear_certificate ? `
                 <div class="modal-section">
                     <h4><i class="fas fa-certificate"></i> NO FEAR Certification</h4>
@@ -604,8 +626,16 @@ class VehicleDashboard {
 
     closeModal() {
         const modal = document.getElementById('vehicle-modal');
+        const deleteBtn = document.getElementById('delete-vehicle-btn');
+        
         modal.style.display = 'none';
         document.body.style.overflow = 'auto';
+        
+        // Clear current vehicle and hide delete button
+        this.currentVehicle = null;
+        if (deleteBtn) {
+            deleteBtn.style.display = 'none';
+        }
     }
 
     changePage(direction) {
@@ -705,6 +735,122 @@ class VehicleDashboard {
         if (!description) return '';
         // Preserve line breaks and basic formatting
         return this.escapeHtml(description).replace(/\n/g, '<br>');
+    }
+
+    renderBookValues(bookValuesBefore, bookValuesAfter) {
+        const hasBeforeValues = bookValuesBefore && Object.keys(bookValuesBefore).length > 0;
+        const hasAfterValues = bookValuesAfter && Object.keys(bookValuesAfter).length > 0;
+        
+        if (!hasBeforeValues && !hasAfterValues) {
+            return '<div class="book-values-empty">No book value data available</div>';
+        }
+
+        let html = '<div class="book-values-container">';
+
+        // If we have both before and after values, show them side by side with differences
+        if (hasBeforeValues && hasAfterValues) {
+            const beforeKeys = Object.keys(bookValuesBefore);
+            const afterKeys = Object.keys(bookValuesAfter);
+            const allKeys = [...new Set([...beforeKeys, ...afterKeys])].sort();
+
+            html += `
+                <div class="book-values-comparison">
+                    <div class="book-values-header">
+                        <div class="key-column">Category</div>
+                        <div class="before-column">Before Processing</div>
+                        <div class="after-column">After Processing</div>
+                        <div class="difference-column">Difference</div>
+                    </div>
+                    <div class="book-values-rows">
+            `;
+
+            allKeys.forEach(key => {
+                const beforeValue = bookValuesBefore[key];
+                const afterValue = bookValuesAfter[key];
+                const beforeNum = this.parseBookValue(beforeValue);
+                const afterNum = this.parseBookValue(afterValue);
+                const difference = (beforeNum !== null && afterNum !== null) ? afterNum - beforeNum : null;
+                
+                html += `
+                    <div class="book-value-row">
+                        <div class="book-value-key">${this.escapeHtml(key)}</div>
+                        <div class="book-value-before">${this.formatBookValue(beforeValue)}</div>
+                        <div class="book-value-after">${this.formatBookValue(afterValue)}</div>
+                        <div class="book-value-difference ${difference > 0 ? 'positive' : difference < 0 ? 'negative' : 'neutral'}">
+                            ${difference !== null ? this.formatBookValueDifference(difference) : 'N/A'}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        } else {
+            // Show only the available values
+            const values = hasBeforeValues ? bookValuesBefore : bookValuesAfter;
+            const title = hasBeforeValues ? 'Before Processing' : 'After Processing';
+            
+            html += `
+                <div class="book-values-single">
+                    <div class="book-values-title">${title}</div>
+                    <div class="book-values-list">
+            `;
+
+            Object.entries(values).forEach(([key, value]) => {
+                html += `
+                    <div class="book-value-item">
+                        <span class="book-value-label">${this.escapeHtml(key)}:</span>
+                        <span class="book-value-value">${this.formatBookValue(value)}</span>
+                    </div>
+                `;
+            });
+
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    parseBookValue(value) {
+        if (value === null || value === undefined || value === '') return null;
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+            // Remove currency symbols, commas, and whitespace
+            const cleaned = value.replace(/[$,\s]/g, '');
+            const parsed = parseFloat(cleaned);
+            return isNaN(parsed) ? null : parsed;
+        }
+        return null;
+    }
+
+    formatBookValue(value) {
+        if (value === null || value === undefined || value === '') return 'N/A';
+        if (typeof value === 'number') {
+            return new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            }).format(value);
+        }
+        return this.escapeHtml(String(value));
+    }
+
+    formatBookValueDifference(difference) {
+        if (difference === 0) return '$0';
+        const formatted = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(Math.abs(difference));
+        return difference > 0 ? `+${formatted}` : `-${formatted}`;
     }
 }
 

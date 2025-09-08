@@ -103,6 +103,8 @@ class VehicleDetail(BaseModel):
     no_fear_certificate: bool
     no_fear_certificate_text: Optional[str] = None
     book_values_processed: bool
+    book_values_before_processing: Optional[Dict[str, Any]] = None
+    book_values_after_processing: Optional[Dict[str, Any]] = None
     media_tab_processed: bool
     media_totals_found: Optional[Dict[str, Any]] = None
     ai_analysis_result: Optional[Dict[str, Any]] = None
@@ -574,6 +576,21 @@ async def get_vehicle_details(vehicle_id: int, current_user: User = Depends(get_
                 except:
                     pass
             
+            # Parse book values
+            book_values_before = {}
+            if vehicle.book_values_before_processing:
+                try:
+                    book_values_before = json.loads(vehicle.book_values_before_processing)
+                except:
+                    pass
+            
+            book_values_after = {}
+            if vehicle.book_values_after_processing:
+                try:
+                    book_values_after = json.loads(vehicle.book_values_after_processing)
+                except:
+                    pass
+            
             ai_analysis_result = {}
             if vehicle.ai_analysis_result:
                 try:
@@ -604,6 +621,8 @@ async def get_vehicle_details(vehicle_id: int, current_user: User = Depends(get_
                 no_fear_certificate=vehicle.no_fear_certificate,
                 no_fear_certificate_text=vehicle.no_fear_certificate_text,
                 book_values_processed=vehicle.book_values_processed,
+                book_values_before_processing=book_values_before,
+                book_values_after_processing=book_values_after,
                 media_tab_processed=vehicle.media_tab_processed,
                 media_totals_found=media_totals_found,
                 ai_analysis_result=ai_analysis_result,
@@ -621,6 +640,44 @@ async def get_vehicle_details(vehicle_id: int, current_user: User = Depends(get_
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/vehicle/{vehicle_id}")
+async def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_current_user)):
+    """Delete a vehicle record"""
+    try:
+        with db_manager.get_session() as session:
+            from database import VehicleProcessingRecord
+            
+            # Find the vehicle record
+            vehicle = session.query(VehicleProcessingRecord).filter(
+                VehicleProcessingRecord.id == vehicle_id,
+                VehicleProcessingRecord.environment_id == current_user.store_id
+            ).first()
+            
+            if not vehicle:
+                raise HTTPException(status_code=404, detail="Vehicle not found")
+            
+            # Store vehicle info for response
+            vehicle_info = {
+                "stock_number": vehicle.stock_number,
+                "vehicle_name": vehicle.vehicle_name
+            }
+            
+            # Delete the vehicle record
+            session.delete(vehicle)
+            session.commit()
+            
+            return {
+                "success": True,
+                "message": f"Vehicle {vehicle_info['stock_number']} deleted successfully",
+                "deleted_vehicle": vehicle_info
+            }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete vehicle: {str(e)}")
 
 @app.get("/api/statistics", response_model=StatisticsResponse)
 async def get_statistics(current_user: User = Depends(get_current_user)):

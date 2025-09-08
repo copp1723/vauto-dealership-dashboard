@@ -133,6 +133,8 @@ class VehicleProcessingRecord(Base):
     
     # Book Values and Media info
     book_values_processed = Column(Boolean, default=False)
+    book_values_before_processing = Column(Text, nullable=True)  # JSON string of book values before processing
+    book_values_after_processing = Column(Text, nullable=True)  # JSON string of book values after processing
     media_tab_processed = Column(Boolean, default=False)
     media_totals_found = Column(Text, nullable=True)  # JSON string of totals found
     
@@ -168,6 +170,8 @@ class VehicleProcessingRecord(Base):
             'processing_duration': self.processing_duration,
             'no_build_data_found': self.no_build_data_found,
             'book_values_processed': self.book_values_processed,
+            'book_values_before_processing': json.loads(self.book_values_before_processing) if self.book_values_before_processing else None,
+            'book_values_after_processing': json.loads(self.book_values_after_processing) if self.book_values_after_processing else None,
             'media_tab_processed': self.media_tab_processed,
             'media_totals_found': json.loads(self.media_totals_found) if self.media_totals_found else None,
         }
@@ -252,7 +256,7 @@ class VehicleDatabaseManager:
                 for key, value in kwargs.items():
                     if hasattr(record, key):
                         # Handle JSON fields
-                        if key in ['starred_features', 'feature_decisions', 'ai_analysis_result', 'errors_encountered', 'media_totals_found']:
+                        if key in ['starred_features', 'feature_decisions', 'ai_analysis_result', 'errors_encountered', 'media_totals_found', 'book_values_before_processing', 'book_values_after_processing']:
                             if value is not None and not isinstance(value, str):
                                 value = json.dumps(value)
                         setattr(record, key, value)
