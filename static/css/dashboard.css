@@ -219,6 +219,65 @@ body {
     flex: 1;
 }
 
+/* Enhanced styling for book value and time saved cards */
+.book-value-card .stat-content,
+.time-saved-card .stat-content {
+    flex: 1;
+}
+
+.book-value-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 5px;
+}
+
+.period-dropdown {
+    font-size: 0.75em;
+    padding: 4px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.period-dropdown:hover {
+    border-color: #6366f1;
+}
+
+.period-dropdown:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 1px #6366f1;
+}
+
+.book-value-details,
+.time-saved-details {
+    margin-top: 4px;
+    font-size: 0.8em;
+}
+
+.book-value-details .text-muted,
+.time-saved-details .text-muted {
+    color: #6b7280;
+    font-style: italic;
+}
+
+/* Special styling for book value amount based on positive/negative */
+#book-value-amount.positive {
+    color: #059669 !important;
+}
+
+#book-value-amount.negative {
+    color: #dc2626 !important;
+}
+
+#book-value-amount.neutral {
+    color: #6b7280 !important;
+}
+
 .stat-number {
     font-size: 24px;
     font-weight: 600;
@@ -1573,4 +1632,442 @@ body {
 .btn-secondary:hover {
     background: #4b5563;
     border-color: #4b5563;
+}
+
+/* Enhanced Book Value Modal Styles */
+.clickable-card {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.clickable-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+}
+
+.book-value-breakdown {
+    padding: 0;
+}
+
+.breakdown-summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 40px 30px;
+    border-radius: 16px;
+    margin-bottom: 30px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+}
+
+.breakdown-summary h4 {
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    opacity: 0.95;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.total-impact {
+    font-size: 3.5em;
+    font-weight: 700;
+    margin: 20px 0;
+    text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    letter-spacing: -1px;
+}
+
+.impact-description {
+    opacity: 0.9;
+    font-size: 1.1em;
+    font-weight: 300;
+}
+
+.breakdown-categories {
+    margin-bottom: 20px;
+}
+
+.breakdown-categories h5 {
+    color: #1f2937;
+    font-size: 1.2em;
+    margin-bottom: 25px;
+    font-weight: 600;
+    text-align: center;
+    position: relative;
+}
+
+.breakdown-categories h5::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 2px;
+}
+
+/* Table Styles for Book Value Modal */
+.breakdown-table-container {
+    margin-bottom: 20px;
+}
+
+.breakdown-table-container h5 {
+    color: #1f2937;
+    font-size: 1.2em;
+    margin-bottom: 25px;
+    font-weight: 600;
+    text-align: center;
+    position: relative;
+}
+
+.breakdown-table-container h5::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 2px;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    background: white;
+}
+
+.book-value-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95em;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.book-value-table thead {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: white;
+}
+
+.book-value-table th {
+    padding: 16px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.9em;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    border: none;
+}
+
+.book-value-table th:first-child {
+    padding-left: 20px;
+}
+
+.book-value-table th:last-child {
+    padding-right: 20px;
+}
+
+.book-value-table tbody tr {
+    border-bottom: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+}
+
+.book-value-table tbody tr:hover {
+    background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+    transform: scale(1.005);
+}
+
+.book-value-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.book-value-table td {
+    padding: 16px 12px;
+    border: none;
+    vertical-align: middle;
+}
+
+.book-value-table td:first-child {
+    padding-left: 20px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.book-value-table td:last-child {
+    padding-right: 20px;
+}
+
+.book-value-table .source-name {
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 1em;
+}
+
+.book-value-table .currency-value {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-weight: 500;
+    font-size: 0.95em;
+}
+
+.book-value-table .change-positive {
+    color: #059669;
+    font-weight: 600;
+    background: rgba(5, 150, 105, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.book-value-table .change-negative {
+    color: #dc2626;
+    font-weight: 600;
+    background: rgba(220, 38, 38, 0.1);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.book-value-table .change-neutral {
+    color: #6b7280;
+    font-weight: 500;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.book-value-table .impact-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+.book-value-table .impact-positive {
+    background: #059669;
+    color: white;
+}
+
+.book-value-table .impact-negative {
+    background: #dc2626;
+    color: white;
+}
+
+.book-value-table .impact-neutral {
+    background: #6b7280;
+    color: white;
+}
+
+.table-empty {
+    text-align: center;
+    padding: 60px 30px;
+    background: linear-gradient(145deg, #f9fafb 0%, #f3f4f6 100%);
+    border-radius: 12px;
+    border: 2px dashed #d1d5db;
+}
+
+.table-empty .empty-icon {
+    font-size: 3em;
+    margin-bottom: 15px;
+    opacity: 0.6;
+}
+
+.table-empty p {
+    color: #6b7280;
+    font-size: 1.1em;
+    font-style: italic;
+}
+
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+.category-item {
+    background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.category-item:hover {
+    background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+    border-color: #cbd5e1;
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+}
+
+.category-item:hover::before {
+    transform: scaleX(1);
+}
+
+.category-name {
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 12px;
+    font-size: 1.1em;
+    letter-spacing: 0.3px;
+}
+
+.category-difference {
+    font-size: 1.4em;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.category-difference.positive {
+    color: #059669;
+    text-shadow: 0 1px 3px rgba(5, 150, 105, 0.2);
+}
+
+.category-difference.negative {
+    color: #dc2626;
+    text-shadow: 0 1px 3px rgba(220, 38, 38, 0.2);
+}
+
+.category-difference.neutral {
+    color: #6b7280;
+    text-shadow: 0 1px 3px rgba(107, 114, 128, 0.2);
+}
+
+/* Enhanced modal styles */
+.modal {
+    backdrop-filter: blur(8px);
+    background: rgba(15, 23, 42, 0.75);
+}
+
+.modal-content {
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-header {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: white;
+    padding: 25px 30px;
+    border-bottom: none;
+}
+
+.modal-header h3 {
+    font-weight: 600;
+    font-size: 1.4em;
+    letter-spacing: 0.3px;
+}
+
+.modal-close {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+.modal-body {
+    padding: 35px;
+}
+
+/* Empty state styling */
+.categories-empty {
+    text-align: center;
+    color: #6b7280;
+    font-style: italic;
+    padding: 60px 30px;
+    background: linear-gradient(145deg, #f9fafb 0%, #f3f4f6 100%);
+    border-radius: 16px;
+    border: 2px dashed #d1d5db;
+    font-size: 1.1em;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95%;
+        margin: 20px auto;
+        border-radius: 16px;
+    }
+    
+    .breakdown-summary {
+        padding: 30px 20px;
+    }
+    
+    .total-impact {
+        font-size: 2.8em;
+    }
+    
+    .modal-body {
+        padding: 25px;
+    }
+    
+    .modal-header {
+        padding: 20px 25px;
+    }
+    
+    /* Table responsive adjustments */
+    .book-value-table {
+        font-size: 0.85em;
+    }
+    
+    .book-value-table th,
+    .book-value-table td {
+        padding: 12px 8px;
+    }
+    
+    .book-value-table th:first-child,
+    .book-value-table td:first-child {
+        padding-left: 12px;
+    }
+    
+    .book-value-table th:last-child,
+    .book-value-table td:last-child {
+        padding-right: 12px;
+    }
+    
+    .book-value-table .impact-icon {
+        width: 20px;
+        height: 20px;
+        font-size: 10px;
+    }
 }

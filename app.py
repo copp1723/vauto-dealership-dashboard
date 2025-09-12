@@ -7,6 +7,7 @@ Professional dashboard for vehicle processing database
 import os
 import sys
 import hashlib
+import json
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, Query, Depends, Form, status
@@ -126,6 +127,13 @@ class Statistics(BaseModel):
     recent_activity_7_days: int
     total_features_marked: int
     avg_features_per_vehicle: str
+    # New metrics
+    total_book_value_mtd: float
+    total_book_value_ytd: float
+    book_value_insights_mtd: Dict[str, Any]
+    book_value_insights_ytd: Dict[str, Any]
+    time_saved_minutes: int
+    time_saved_formatted: str
 
 class StatisticsResponse(BaseModel):
     success: bool
@@ -246,6 +254,132 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         if user is None:
             raise credentials_exception
         return user
+
+# Helper Functions for Statistics
+def calculate_book_value_difference(before_data: Dict, after_data: Dict) -> float:
+    """Calculate the difference between before and after book values using KBB as primary"""
+    try:
+        before_kbb = parse_currency_value(before_data.get('KBB', '0')) if before_data else 0.0
+        after_kbb = parse_currency_value(after_data.get('KBB', '0')) if after_data else 0.0
+        
+        # If no KBB, try other major sources
+        if before_kbb == 0 and after_kbb == 0:
+            for source in ['rBook', 'J.D. Power', 'MMR', 'Black Book']:
+                before_val = parse_currency_value(before_data.get(source, '0')) if before_data else 0.0
+                after_val = parse_currency_value(after_data.get(source, '0')) if after_data else 0.0
+                if before_val > 0 or after_val > 0:
+                    return after_val - before_val
+        
+        return after_kbb - before_kbb
+    except (ValueError, TypeError, KeyError):
+        return 0.0
+
+def parse_currency_value(value_str: str) -> float:
+    """Parse currency string like '$25,000' to float"""
+    if not value_str or value_str.strip() == "":
+        return 0.0
+    try:
+        # Remove $ signs, commas, and convert to float
+        cleaned = value_str.replace('$', '').replace(',', '').strip()
+        return float(cleaned) if cleaned else 0.0
+    except (ValueError, TypeError):
+        return 0.0
+
+def calculate_book_value_insights(before_data: Dict, after_data: Dict) -> Dict:
+    """Calculate detailed book value insights with category-by-category analysis"""
+    insights = {
+        'total_difference': 0.0,
+        'categories': {},
+        'best_improvement': {'category': '', 'amount': 0.0},
+        'primary_source': 'KBB',
+        'summary': 'No data available'
+    }
+    
+    try:
+        if not before_data or not after_data:
+            return insights
+            
+        # Common book value categories we expect to see
+        all_categories = set()
+        if isinstance(before_data, dict):
+            all_categories.update(before_data.keys())
+        if isinstance(after_data, dict):
+            all_categories.update(after_data.keys())
+            
+        # Remove empty string keys
+        all_categories.discard('')
+        
+        best_improvement = 0.0
+        best_category = ''
+        primary_diff = 0.0
+        
+        # Calculate differences for each category
+        for category in all_categories:
+            if not category:  # Skip empty categories
+                continue
+                
+            before_val = parse_currency_value(before_data.get(category, '0'))
+            after_val = parse_currency_value(after_data.get(category, '0'))
+            difference = after_val - before_val
+            
+            insights['categories'][category] = {
+                'before': before_val,
+                'after': after_val,
+                'difference': difference,
+                'improvement': difference > 0
+            }
+            
+            # Track best improvement
+            if difference > best_improvement:
+                best_improvement = difference
+                best_category = category
+                
+            # Use KBB as primary, fallback to others
+            if category == 'KBB':
+                primary_diff = difference
+                insights['primary_source'] = 'KBB'
+            elif primary_diff == 0 and category in ['rBook', 'J.D. Power', 'MMR']:
+                primary_diff = difference
+                insights['primary_source'] = category
+        
+        insights['total_difference'] = primary_diff
+        insights['best_improvement'] = {'category': best_category, 'amount': best_improvement}
+        
+        # Create summary
+        if primary_diff > 0:
+            insights['summary'] = f"${primary_diff:,.0f} increase found by automation"
+        elif primary_diff < 0:
+            insights['summary'] = f"${abs(primary_diff):,.0f} decrease found by automation"
+        else:
+            insights['summary'] = "No value change detected"
+            
+    except Exception as e:
+        print(f"Error calculating book value insights: {e}")
+        
+    return insights
+
+def calculate_time_saved(vehicle_count: int) -> tuple[int, str]:
+    """Calculate time saved based on vehicle count (11 minutes per vehicle)"""
+    total_minutes = vehicle_count * 11
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    
+    if hours > 0:
+        formatted = f"{hours} HOUR{'S' if hours != 1 else ''} {minutes} MINUTE{'S' if minutes != 1 else ''}"
+    else:
+        formatted = f"{minutes} MINUTE{'S' if minutes != 1 else ''}"
+    
+    return total_minutes, formatted
+
+def get_month_start() -> datetime:
+    """Get the start of the current month"""
+    now = datetime.utcnow()
+    return datetime(now.year, now.month, 1)
+
+def get_year_start() -> datetime:
+    """Get the start of the current year"""
+    now = datetime.utcnow()
+    return datetime(now.year, 1, 1)
 
 # Quick check to see if we can access data
 try:
@@ -714,6 +848,92 @@ async def get_statistics(current_user: User = Depends(get_current_user)):
             total_features_marked = sum(count[0] or 0 for count in total_features)
             avg_features_per_vehicle = (total_features_marked / total_vehicles) if total_vehicles > 0 else 0
             
+            # Calculate book value totals (Month-to-Date and Year-to-Date)
+            month_start = get_month_start()
+            year_start = get_year_start()
+            
+            # Get vehicles with book values for MTD
+            mtd_vehicles = base_query.filter(
+                VehicleProcessingRecord.processing_date >= month_start,
+                VehicleProcessingRecord.book_values_processed == True,
+                VehicleProcessingRecord.book_values_before_processing.isnot(None),
+                VehicleProcessingRecord.book_values_after_processing.isnot(None)
+            ).all()
+            
+            # Get vehicles with book values for YTD
+            ytd_vehicles = base_query.filter(
+                VehicleProcessingRecord.processing_date >= year_start,
+                VehicleProcessingRecord.book_values_processed == True,
+                VehicleProcessingRecord.book_values_before_processing.isnot(None),
+                VehicleProcessingRecord.book_values_after_processing.isnot(None)
+            ).all()
+            
+            # Calculate total book value differences and insights
+            total_book_value_mtd = 0.0
+            mtd_insights = {'categories': {}, 'total_difference': 0.0, 'best_improvement': {'category': '', 'amount': 0.0}, 'primary_source': 'KBB', 'summary': 'No MTD data available'}
+            
+            for vehicle in mtd_vehicles:
+                try:
+                    before_data = json.loads(vehicle.book_values_before_processing) if vehicle.book_values_before_processing else {}
+                    after_data = json.loads(vehicle.book_values_after_processing) if vehicle.book_values_after_processing else {}
+                    
+                    # Calculate vehicle insights
+                    vehicle_insights = calculate_book_value_insights(before_data, after_data)
+                    difference = calculate_book_value_difference(before_data, after_data)
+                    total_book_value_mtd += difference
+                    
+                    # Aggregate insights
+                    for category, data in vehicle_insights['categories'].items():
+                        if category not in mtd_insights['categories']:
+                            mtd_insights['categories'][category] = {'before': 0, 'after': 0, 'difference': 0, 'improvement': False}
+                        mtd_insights['categories'][category]['difference'] += data['difference']
+                        
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            # Update MTD summary
+            mtd_insights['total_difference'] = total_book_value_mtd
+            if total_book_value_mtd > 0:
+                mtd_insights['summary'] = f"${total_book_value_mtd:,.0f} total increase (MTD)"
+            elif total_book_value_mtd < 0:
+                mtd_insights['summary'] = f"${abs(total_book_value_mtd):,.0f} total decrease (MTD)"
+            else:
+                mtd_insights['summary'] = "No MTD value changes detected"
+            
+            total_book_value_ytd = 0.0
+            ytd_insights = {'categories': {}, 'total_difference': 0.0, 'best_improvement': {'category': '', 'amount': 0.0}, 'primary_source': 'KBB', 'summary': 'No YTD data available'}
+            
+            for vehicle in ytd_vehicles:
+                try:
+                    before_data = json.loads(vehicle.book_values_before_processing) if vehicle.book_values_before_processing else {}
+                    after_data = json.loads(vehicle.book_values_after_processing) if vehicle.book_values_after_processing else {}
+                    
+                    # Calculate vehicle insights
+                    vehicle_insights = calculate_book_value_insights(before_data, after_data)
+                    difference = calculate_book_value_difference(before_data, after_data)
+                    total_book_value_ytd += difference
+                    
+                    # Aggregate insights
+                    for category, data in vehicle_insights['categories'].items():
+                        if category not in ytd_insights['categories']:
+                            ytd_insights['categories'][category] = {'before': 0, 'after': 0, 'difference': 0, 'improvement': False}
+                        ytd_insights['categories'][category]['difference'] += data['difference']
+                        
+                except (json.JSONDecodeError, TypeError):
+                    continue
+            
+            # Update YTD summary
+            ytd_insights['total_difference'] = total_book_value_ytd
+            if total_book_value_ytd > 0:
+                ytd_insights['summary'] = f"${total_book_value_ytd:,.0f} total increase (YTD)"
+            elif total_book_value_ytd < 0:
+                ytd_insights['summary'] = f"${abs(total_book_value_ytd):,.0f} total decrease (YTD)"
+            else:
+                ytd_insights['summary'] = "No YTD value changes detected"
+            
+            # Calculate time saved (based on total successful vehicles)
+            time_saved_minutes, time_saved_formatted = calculate_time_saved(successful_processing)
+            
             statistics = Statistics(
                 total_vehicles=total_vehicles,
                 successful_processing=successful_processing,
@@ -723,13 +943,63 @@ async def get_statistics(current_user: User = Depends(get_current_user)):
                 no_fear_certificates=with_no_fear,
                 recent_activity_7_days=recent_vehicles,
                 total_features_marked=total_features_marked,
-                avg_features_per_vehicle=f"{avg_features_per_vehicle:.1f}"
+                avg_features_per_vehicle=f"{avg_features_per_vehicle:.1f}",
+                total_book_value_mtd=total_book_value_mtd,
+                total_book_value_ytd=total_book_value_ytd,
+                book_value_insights_mtd=mtd_insights,
+                book_value_insights_ytd=ytd_insights,
+                time_saved_minutes=time_saved_minutes,
+                time_saved_formatted=time_saved_formatted
             )
             
             return StatisticsResponse(
                 success=True,
                 statistics=statistics
             )
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/debug/book-values")
+async def debug_book_values(current_user: User = Depends(get_current_user)):
+    """Debug endpoint to inspect book values data structure"""
+    try:
+        with db_manager.get_session() as session:
+            from database import VehicleProcessingRecord
+            
+            # Get a few records with book values
+            vehicles_with_book_values = session.query(VehicleProcessingRecord).filter(
+                VehicleProcessingRecord.environment_id == current_user.store_id,
+                VehicleProcessingRecord.book_values_processed == True,
+                VehicleProcessingRecord.book_values_before_processing.isnot(None)
+            ).limit(5).all()
+            
+            debug_data = []
+            for vehicle in vehicles_with_book_values:
+                try:
+                    before_data = json.loads(vehicle.book_values_before_processing) if vehicle.book_values_before_processing else {}
+                    after_data = json.loads(vehicle.book_values_after_processing) if vehicle.book_values_after_processing else {}
+                    difference = calculate_book_value_difference(before_data, after_data)
+                    
+                    debug_data.append({
+                        "stock_number": vehicle.stock_number,
+                        "before_data": before_data,
+                        "after_data": after_data,
+                        "calculated_difference": difference
+                    })
+                except Exception as e:
+                    debug_data.append({
+                        "stock_number": vehicle.stock_number,
+                        "error": str(e),
+                        "before_raw": vehicle.book_values_before_processing,
+                        "after_raw": vehicle.book_values_after_processing
+                    })
+            
+            return {
+                "success": True,
+                "total_vehicles_with_book_values": len(vehicles_with_book_values),
+                "sample_data": debug_data
+            }
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

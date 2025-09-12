@@ -80,23 +80,37 @@
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card book-value-card clickable-card" onclick="showBookValueModal()">
                         <div class="stat-icon premium">
-                            <i class="fas fa-certificate"></i>
+                            <i class="fas fa-dollar-sign"></i>
                         </div>
                         <div class="stat-content">
-                            <div class="stat-number" id="no-fear-certs">-</div>
-                            <div class="stat-label">NO FEAR Certificates</div>
+                            <div class="stat-number" id="book-value-amount">$0</div>
+                            <div class="stat-label">
+                                <span id="book-value-source">KBB</span> BOOK VALUE CHANGE
+                            </div>
+                            <div class="book-value-controls">
+                                <select id="book-value-period" class="period-dropdown" onclick="event.stopPropagation()">
+                                    <option value="mtd">Month to Date</option>
+                                    <option value="ytd">Year to Date</option>
+                                </select>
+                            </div>
+                            <div class="book-value-subtitle">
+                                <small class="text-muted">Click for all categories</small>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="stat-card">
+                    <div class="stat-card time-saved-card">
                         <div class="stat-icon activity">
-                            <i class="fas fa-star"></i>
+                            <i class="fas fa-clock"></i>
                         </div>
                         <div class="stat-content">
-                            <div class="stat-number" id="featured-count">-</div>
-                            <div class="stat-label">Featured Vehicles</div>
+                            <div class="stat-number" id="time-saved">0 MINUTES</div>
+                            <div class="stat-label">TIME SAVED</div>
+                            <!-- <div class="time-saved-details" id="time-saved-details">
+                                <small class="text-muted">11 min × <span id="vehicles-processed">0</span> vehicles</small>
+                            </div> -->
                         </div>
                     </div>
                 </div>
@@ -217,6 +231,47 @@
                     <button class="btn btn-danger" id="confirm-delete-btn" onclick="confirmDelete()">
                         <i class="fas fa-trash"></i> Delete Vehicle
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book Value Details Modal -->
+    <div class="modal" id="book-value-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="book-value-modal-title">Book Value Changes</h3>
+                <button class="modal-close" onclick="closeBookValueModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="book-value-breakdown">
+                    <div class="breakdown-summary">
+                        <h4 id="breakdown-period">Month to Date</h4>
+                        <div class="total-impact" id="breakdown-total">$0</div>
+                        <p class="impact-description" id="breakdown-description">Primary source difference</p>
+                    </div>
+                    
+                    <div class="breakdown-table-container">
+                        <h5>All Valuation Sources</h5>
+                        <div class="table-wrapper">
+                            <table class="book-value-table" id="book-value-table">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="book-value-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="table-empty" id="table-empty" style="display: none;">
+                            <div class="empty-icon">📊</div>
+                            <p>No value changes detected for this period</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

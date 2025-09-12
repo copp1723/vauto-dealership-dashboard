@@ -89,6 +89,14 @@ class VehicleDashboard {
             this.loadVehicles();
         });
 
+        // Book value period dropdown
+        const bookValuePeriod = document.getElementById('book-value-period');
+        if (bookValuePeriod) {
+            bookValuePeriod.addEventListener('change', () => {
+                this.updateBookValueDisplay();
+            });
+        }
+
         // Modal close on background click
         document.getElementById('vehicle-modal').addEventListener('click', (e) => {
             if (e.target.id === 'vehicle-modal') {
@@ -96,10 +104,23 @@ class VehicleDashboard {
             }
         });
 
+        // Book value modal close on background click
+        const bookValueModal = document.getElementById('book-value-modal');
+        if (bookValueModal) {
+            bookValueModal.addEventListener('click', (e) => {
+                if (e.target.id === 'book-value-modal') {
+                    closeBookValueModal();
+                }
+            });
+        }
+
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeModal();
+                if (typeof closeBookValueModal === 'function') {
+                    closeBookValueModal();
+                }
             }
             if (e.key === '/' && !e.target.matches('input, textarea')) {
                 e.preventDefault();
@@ -112,14 +133,38 @@ class VehicleDashboard {
         try {
             this.showLoadingState();
             
-            // Load all data concurrently
-            await Promise.all([
-                this.loadStatistics(),
-                this.loadVehicles()
+            // Load statistics and vehicles separately to handle errors individually
+            const statisticsPromise = this.loadStatistics().catch(error => {
+                console.error('Error loading statistics:', error);
+                this.showToast('Failed to load statistics', 'error');
+                return null;
+            });
+            
+            const vehiclesPromise = this.loadVehicles().catch(error => {
+                console.error('Error loading vehicles:', error);
+                this.showErrorState('Failed to load vehicles');
+                return null;
+            });
+            
+            // Wait for both to complete
+            const [statisticsResult, vehiclesResult] = await Promise.all([
+                statisticsPromise,
+                vehiclesPromise
             ]);
             
-            this.hideLoadingState();
-            this.showToast('Dashboard loaded successfully', 'success');
+            // Only hide loading and show success if at least one succeeded
+            if (statisticsResult !== null || vehiclesResult !== null) {
+                this.hideLoadingState();
+                if (statisticsResult !== null && vehiclesResult !== null) {
+                    this.showToast('Dashboard loaded successfully', 'success');
+                } else if (vehiclesResult !== null) {
+                    this.showToast('Vehicles loaded successfully', 'success');
+                }
+            } else {
+                // Both failed
+                this.showErrorState('Failed to load dashboard data');
+                this.showToast('Failed to load dashboard data', 'error');
+            }
         } catch (error) {
             console.error('Error loading initial data:', error);
             this.showErrorState('Failed to load dashboard data');
@@ -135,12 +180,13 @@ class VehicleDashboard {
             if (data.success) {
                 this.statistics = data.statistics;
                 this.updateStatisticsDisplay();
+                return true;
             } else {
                 throw new Error(data.error || 'Failed to load statistics');
             }
         } catch (error) {
             console.error('Error loading statistics:', error);
-            throw error;
+            return false;
         }
     }
 
@@ -150,15 +196,78 @@ class VehicleDashboard {
         document.getElementById('total-vehicles').textContent = stats.total_vehicles || '0';
         document.getElementById('descriptions-updated').textContent = stats.descriptions_updated || '0';
         document.getElementById('total-features').textContent = stats.total_features_marked || '0';
-        document.getElementById('no-fear-certs').textContent = stats.no_fear_certificates || '0';
+        
+        // Update new metrics
+        this.updateBookValueDisplay();
+        
+        // Update time saved with better formatting
+        document.getElementById('time-saved').textContent = stats.time_saved_formatted || '0 MINUTES';
+        document.getElementById('vehicles-processed').textContent = stats.successful_processing || '0';
+    }
 
-        // Calculate featured vehicles count (successful vehicles processed in last 7 days)
-        const featuredCount = this.vehicles ? this.vehicles.filter(v =>
-            v.processing_successful &&
-            v.processing_status !== 'processing' &&
-            new Date(v.processing_date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        ).length : 0;
-        document.getElementById('featured-count').textContent = featuredCount.toString();
+    updateBookValueDisplay() {
+        const stats = this.statistics;
+        const period = document.getElementById('book-value-period').value;
+        
+        let amount = 0;
+        let insights = {};
+        
+        if (period === 'mtd') {
+            amount = stats.total_book_value_mtd || 0;
+            insights = stats.book_value_insights_mtd || {};
+        } else {
+            amount = stats.total_book_value_ytd || 0;
+            insights = stats.book_value_insights_ytd || {};
+        }
+        
+        // Format as currency
+        const formatted = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(Math.abs(amount));
+        
+        // Add + or - sign based on the value
+        const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+        const displayValue = amount === 0 ? '$0' : sign + formatted;
+        
+        const element = document.getElementById('book-value-amount');
+        element.textContent = displayValue;
+        
+        // Color coding
+        if (amount > 0) {
+            element.style.color = '#059669';
+        } else if (amount < 0) {
+            element.style.color = '#dc2626';
+        } else {
+            element.style.color = '#6b7280';
+        }
+        
+        // Update the source label to show which category is being displayed
+        const sourceElement = document.getElementById('book-value-source');
+        if (sourceElement) {
+            const primarySource = insights.primary_source || 'KBB';
+            sourceElement.textContent = primarySource;
+        }
+        
+        // Store current insights for modal
+        this.currentBookValueInsights = insights;
+        this.currentBookValuePeriod = period;
+        this.currentBookValueAmount = amount;
+    }
+    
+    getVehicleCountForPeriod(period) {
+        // This is a simplified count - in a real implementation, 
+        // you might want to add this data to the statistics response
+        const stats = this.statistics;
+        if (period === 'mtd') {
+            // For now, use a portion of successful processing as an estimate
+            // In production, you'd want the backend to provide this specific count
+            return Math.floor((stats.successful_processing || 0) * 0.3); // Rough estimate
+        } else {
+            return stats.successful_processing || 0;
+        }
     }
 
     async loadVehicles() {
@@ -177,13 +286,14 @@ class VehicleDashboard {
                 this.updateVehiclesDisplay();
                 this.updatePagination(data.pagination);
                 this.updateResultsCount(data.pagination);
+                this.hideErrorState(); // Hide error state when vehicles load successfully
+                return true;
             } else {
                 throw new Error(data.error || 'Failed to load vehicles');
             }
         } catch (error) {
             console.error('Error loading vehicles:', error);
-            this.showErrorState('Failed to load vehicles');
-            throw error;
+            return false;
         }
     }
 
@@ -688,7 +798,12 @@ class VehicleDashboard {
 
     hideLoadingState() {
         document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('error-state').style.display = 'none';
         document.getElementById('vehicles-grid').style.display = 'grid';
+    }
+
+    hideErrorState() {
+        document.getElementById('error-state').style.display = 'none';
     }
 
     showErrorState(message) {
@@ -911,6 +1026,111 @@ class VehicleDashboard {
             return response;
         });
     }
+}
+
+// Book Value Modal Functions
+function showBookValueModal() {
+    if (!dashboard || !dashboard.currentBookValueInsights) {
+        console.warn('No book value insights available');
+        return;
+    }
+    
+    const insights = dashboard.currentBookValueInsights;
+    const period = dashboard.currentBookValuePeriod;
+    const amount = dashboard.currentBookValueAmount;
+    
+    // Update modal title and summary
+    const periodText = period === 'mtd' ? 'Month to Date' : 'Year to Date';
+    document.getElementById('book-value-modal-title').textContent = `Book Value Changes - ${periodText}`;
+    document.getElementById('breakdown-period').textContent = periodText;
+    
+    // Format total amount
+    const formatted = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(Math.abs(amount));
+    
+    const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+    document.getElementById('breakdown-total').textContent = amount === 0 ? '$0' : sign + formatted;
+    
+    // Update description
+    let description = 'Primary source difference';
+    if (amount > 0) {
+        description = `Positive ${description}`;
+    } else if (amount < 0) {
+        description = `Negative ${description}`;
+    } else {
+        description = 'No significant value changes detected';
+    }
+    document.getElementById('breakdown-description').textContent = description;
+    
+    // Populate table
+    const tableBody = document.getElementById('book-value-table-body');
+    const tableEmpty = document.getElementById('table-empty');
+    const tableWrapper = document.querySelector('.table-wrapper');
+    
+    tableBody.innerHTML = '';
+    
+    const categories = insights.categories || {};
+    const categoryKeys = Object.keys(categories);
+    
+    // Filter out categories with zero difference
+    const nonZeroCategories = categoryKeys.filter(category => {
+        const data = categories[category];
+        const difference = data.difference || 0;
+        return difference !== 0;
+    });
+    
+    if (nonZeroCategories.length === 0) {
+        tableWrapper.style.display = 'none';
+        tableEmpty.style.display = 'block';
+    } else {
+        tableWrapper.style.display = 'block';
+        tableEmpty.style.display = 'none';
+        
+        nonZeroCategories.forEach(category => {
+            const data = categories[category];
+            const difference = data.difference || 0;
+            
+            const row = document.createElement('tr');
+            
+            // Format currency values
+            const formatCurrency = (amount) => {
+                return new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(Math.abs(amount));
+            };
+            
+            // Determine change styling
+            let changeClass = 'change-neutral';
+            if (difference > 0) {
+                changeClass = 'change-positive';
+            } else if (difference < 0) {
+                changeClass = 'change-negative';
+            }
+            
+            const changeFormatted = (difference > 0 ? '+' : '') + formatCurrency(difference);
+            
+            row.innerHTML = `
+                <td class="source-name">${category}</td>
+                <td class="currency-value ${changeClass}">${changeFormatted}</td>
+            `;
+            
+            tableBody.appendChild(row);
+        });
+    }
+    
+    // Show modal
+    document.getElementById('book-value-modal').style.display = 'flex';
+}
+
+function closeBookValueModal() {
+    document.getElementById('book-value-modal').style.display = 'none';
 }
 
 // Global functions for HTML onclick handlers
