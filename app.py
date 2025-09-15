@@ -475,6 +475,61 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
         last_login=current_user.last_login.isoformat() if current_user.last_login else None
     )
 
+@app.get("/api/debug/date-distribution")
+async def get_date_distribution(current_user: User = Depends(get_current_user)):
+    """Debug endpoint to check date distribution of vehicles"""
+    try:
+        with db_manager.get_session() as session:
+            from database import VehicleProcessingRecord
+            from sqlalchemy import func
+            
+            # Get date distribution
+            dates = session.query(
+                func.date(VehicleProcessingRecord.processing_date).label('date'),
+                func.count(VehicleProcessingRecord.id).label('count')
+            ).filter(
+                VehicleProcessingRecord.environment_id == current_user.store_id
+            ).group_by(
+                func.date(VehicleProcessingRecord.processing_date)
+            ).order_by(
+                func.date(VehicleProcessingRecord.processing_date).desc()
+            ).all()
+            
+            distribution = [
+                {
+                    "date": date.strftime('%Y-%m-%d'),
+                    "count": count,
+                    "day_name": date.strftime('%A')
+                }
+                for date, count in dates
+            ]
+            
+            # Get min and max dates
+            min_max = session.query(
+                func.min(VehicleProcessingRecord.processing_date),
+                func.max(VehicleProcessingRecord.processing_date)
+            ).filter(
+                VehicleProcessingRecord.environment_id == current_user.store_id
+            ).first()
+            
+            return JSONResponse({
+                "success": True,
+                "date_distribution": distribution,
+                "date_range": {
+                    "min": min_max[0].strftime('%Y-%m-%d %H:%M:%S') if min_max[0] else None,
+                    "max": min_max[1].strftime('%Y-%m-%d %H:%M:%S') if min_max[1] else None
+                },
+                "total_days": len(distribution),
+                "current_month_count": len([d for d in distribution if d["date"].startswith(datetime.now().strftime('%Y-%m'))]),
+                "current_year_count": len([d for d in distribution if d["date"].startswith(str(datetime.now().year))])
+            })
+    except Exception as e:
+        print(f"Error getting date distribution: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Login page"""
@@ -497,9 +552,19 @@ async def get_vehicles(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     search: str = Query("", description="Search by stock number"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_user)
 ):
     """Get all vehicles with pagination and search"""
+    print(f"Vehicles API called with start_date={start_date}, end_date={end_date}, search={search}")
+    
+    # Handle null/empty string dates
+    if start_date == "null" or start_date == "":
+        start_date = None
+    if end_date == "null" or end_date == "":
+        end_date = None
+        
     try:
         search = search.strip()
         
@@ -517,6 +582,23 @@ async def get_vehicles(
                 query = query.filter(
                     VehicleProcessingRecord.stock_number.ilike(f'%{search}%')
                 )
+            
+            # Apply date range filter if provided
+            if start_date:
+                try:
+                    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                    query = query.filter(VehicleProcessingRecord.processing_date >= start_dt)
+                    print(f"Applied start date filter: {start_dt}")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+            
+            if end_date:
+                try:
+                    end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # Include entire end day
+                    query = query.filter(VehicleProcessingRecord.processing_date < end_dt)
+                    print(f"Applied end date filter: {end_dt}")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
             
             # Get total count
             total = query.count()
@@ -814,8 +896,20 @@ async def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_curre
         raise HTTPException(status_code=500, detail=f"Failed to delete vehicle: {str(e)}")
 
 @app.get("/api/statistics", response_model=StatisticsResponse)
-async def get_statistics(current_user: User = Depends(get_current_user)):
+async def get_statistics(
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    current_user: User = Depends(get_current_user)
+):
     """Get dashboard statistics"""
+    print(f"Statistics API called with start_date={start_date}, end_date={end_date}")
+    
+    # Handle null/empty string dates
+    if start_date == "null" or start_date == "":
+        start_date = None
+    if end_date == "null" or end_date == "":
+        end_date = None
+        
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
@@ -824,6 +918,23 @@ async def get_statistics(current_user: User = Depends(get_current_user)):
             base_query = session.query(VehicleProcessingRecord).filter(
                 VehicleProcessingRecord.environment_id == current_user.store_id
             )
+            
+            # Apply date range filter if provided
+            if start_date:
+                try:
+                    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+                    base_query = base_query.filter(VehicleProcessingRecord.processing_date >= start_dt)
+                    print(f"Statistics: Applied start date filter: {start_dt}")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+            
+            if end_date:
+                try:
+                    end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # Include entire end day
+                    base_query = base_query.filter(VehicleProcessingRecord.processing_date < end_dt)
+                    print(f"Statistics: Applied end date filter: {end_dt}")
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
             
             # Basic counts
             total_vehicles = base_query.count()

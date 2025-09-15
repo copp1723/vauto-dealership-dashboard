@@ -28,6 +28,127 @@ function authenticatedFetch(url, options = {}) {
     });
 }
 
+// Global Date Filter Manager
+class GlobalDateFilter {
+    constructor() {
+        this.currentFilter = 'mtd';
+        this.customStartDate = null;
+        this.customEndDate = null;
+        this.initializeFilter();
+    }
+
+    initializeFilter() {
+        const dropdown = document.getElementById('global-date-filter');
+        if (dropdown) {
+            dropdown.addEventListener('change', (e) => this.handleFilterChange(e.target.value));
+        }
+        
+        this.updateRangeDisplay();
+    }
+
+    handleFilterChange(newFilter) {
+        console.log('Date filter changing to:', newFilter);
+        if (newFilter === 'custom') {
+            this.showCustomDateModal();
+        } else {
+            this.currentFilter = newFilter;
+            this.updateRangeDisplay();
+            this.notifyFilterChange();
+        }
+    }
+
+    showCustomDateModal() {
+        const modal = document.getElementById('date-range-modal');
+        modal.style.display = 'flex';
+        
+        // Set default dates if not already set
+        const today = new Date();
+        const startDate = document.getElementById('start-date');
+        const endDate = document.getElementById('end-date');
+        
+        if (!this.customStartDate) {
+            const thirtyDaysAgo = new Date(today);
+            thirtyDaysAgo.setDate(today.getDate() - 30);
+            startDate.value = thirtyDaysAgo.toISOString().split('T')[0];
+        } else {
+            startDate.value = this.customStartDate;
+        }
+        
+        if (!this.customEndDate) {
+            endDate.value = today.toISOString().split('T')[0];
+        } else {
+            endDate.value = this.customEndDate;
+        }
+    }
+
+    getDateRange() {
+        const today = new Date();
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        
+        switch (this.currentFilter) {
+            case 'mtd':
+                return {
+                    start: startOfMonth.toISOString().split('T')[0],
+                    end: today.toISOString().split('T')[0],
+                    label: 'This Month'
+                };
+            case 'ytd':
+                return {
+                    start: startOfYear.toISOString().split('T')[0],
+                    end: today.toISOString().split('T')[0],
+                    label: 'This Year'
+                };
+            case 'custom':
+                if (this.customStartDate && this.customEndDate) {
+                    return {
+                        start: this.customStartDate,
+                        end: this.customEndDate,
+                        label: this.getCustomRangeLabel()
+                    };
+                } else {
+                    // If custom dates aren't set, fall back to MTD
+                    console.warn('Custom date range selected but dates not set, falling back to MTD');
+                    return this.getDateRange('mtd');
+                }
+            default:
+                return this.getDateRange('mtd');
+        }
+    }
+
+    getCustomRangeLabel() {
+        if (this.customStartDate && this.customEndDate) {
+            const start = new Date(this.customStartDate);
+            const end = new Date(this.customEndDate);
+            const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            return `${startStr} - ${endStr}`;
+        }
+        return 'Custom Range';
+    }
+
+    updateRangeDisplay() {
+        const display = document.getElementById('current-range-display');
+        const range = this.getDateRange();
+        if (display) {
+            display.textContent = range.label;
+        }
+    }
+
+    notifyFilterChange() {
+        // Trigger dashboard refresh with new date range
+        const dateRange = this.getDateRange();
+        console.log('Notifying date filter change:', dateRange);
+        console.log('window.dashboard exists?', !!window.dashboard);
+        if (window.dashboard) {
+            console.log('Calling dashboard.handleDateFilterChange...');
+            window.dashboard.handleDateFilterChange(dateRange);
+        } else {
+            console.error('window.dashboard not found!');
+        }
+    }
+}
+
 class VehicleDashboard {
     constructor() {
         this.currentPage = 1;
@@ -35,10 +156,17 @@ class VehicleDashboard {
         this.currentSearch = '';
         this.statusFilter = '';
         this.descriptionFilter = '';
+        this.currentDateRange = null;
         this.vehicles = [];
         this.statistics = {};
         this.recentActivity = [];
         this.currentVehicle = null;
+        
+        // Get initial date range from global filter if available
+        if (window.globalDateFilter) {
+            this.currentDateRange = window.globalDateFilter.getDateRange();
+            console.log('Dashboard initialized with date range:', this.currentDateRange);
+        }
         
         this.initializeEventListeners();
         this.loadInitialData();
@@ -89,13 +217,7 @@ class VehicleDashboard {
             this.loadVehicles();
         });
 
-        // Book value period dropdown
-        const bookValuePeriod = document.getElementById('book-value-period');
-        if (bookValuePeriod) {
-            bookValuePeriod.addEventListener('change', () => {
-                this.updateBookValueDisplay();
-            });
-        }
+        // Book value period dropdown removed - always use MTD data
 
         // Modal close on background click
         document.getElementById('vehicle-modal').addEventListener('click', (e) => {
@@ -104,23 +226,14 @@ class VehicleDashboard {
             }
         });
 
-        // Book value modal close on background click
-        const bookValueModal = document.getElementById('book-value-modal');
-        if (bookValueModal) {
-            bookValueModal.addEventListener('click', (e) => {
-                if (e.target.id === 'book-value-modal') {
-                    closeBookValueModal();
-                }
-            });
-        }
+        // Mobile sidebar functionality
+        this.initializeMobileSidebar();
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 this.closeModal();
-                if (typeof closeBookValueModal === 'function') {
-                    closeBookValueModal();
-                }
+                this.closeMobileSidebar();
             }
             if (e.key === '/' && !e.target.matches('input, textarea')) {
                 e.preventDefault();
@@ -174,11 +287,27 @@ class VehicleDashboard {
 
     async loadStatistics() {
         try {
-            const response = await authenticatedFetch('/api/statistics');
+            let url = '/api/statistics';
+            
+            // Add date range parameters if available
+            if (this.currentDateRange && this.currentDateRange.start && this.currentDateRange.end) {
+                const params = new URLSearchParams({
+                    start_date: this.currentDateRange.start,
+                    end_date: this.currentDateRange.end
+                });
+                url += `?${params.toString()}`;
+                console.log('Loading statistics with date filter:', this.currentDateRange.start, 'to', this.currentDateRange.end);
+            }
+            
+            console.log('Loading statistics with URL:', url);
+            
+            const response = await authenticatedFetch(url);
             const data = await response.json();
             
             if (data.success) {
                 this.statistics = data.statistics;
+                console.log('Statistics loaded for date range:', this.currentDateRange);
+                console.log('Total vehicles in stats:', data.statistics.total_vehicles);
                 this.updateStatisticsDisplay();
                 return true;
             } else {
@@ -193,32 +322,33 @@ class VehicleDashboard {
     updateStatisticsDisplay() {
         const stats = this.statistics;
         
-        document.getElementById('total-vehicles').textContent = stats.total_vehicles || '0';
-        document.getElementById('descriptions-updated').textContent = stats.descriptions_updated || '0';
-        document.getElementById('total-features').textContent = stats.total_features_marked || '0';
+        // Safely update elements if they exist
+        const updateElement = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = value;
+            }
+        };
+        
+        updateElement('total-vehicles', stats.total_vehicles || '0');
+        updateElement('descriptions-updated', stats.descriptions_updated || '0');
+        updateElement('total-features', stats.total_features_marked || '0');
         
         // Update new metrics
         this.updateBookValueDisplay();
         
         // Update time saved with better formatting
-        document.getElementById('time-saved').textContent = stats.time_saved_formatted || '0 MINUTES';
-        document.getElementById('vehicles-processed').textContent = stats.successful_processing || '0';
+        updateElement('time-saved', stats.time_saved_formatted || '0 MINUTES');
+        // vehicles-processed element is commented out in HTML
+        updateElement('vehicles-processed', stats.successful_processing || '0');
     }
 
     updateBookValueDisplay() {
         const stats = this.statistics;
-        const period = document.getElementById('book-value-period').value;
         
-        let amount = 0;
-        let insights = {};
-        
-        if (period === 'mtd') {
-            amount = stats.total_book_value_mtd || 0;
-            insights = stats.book_value_insights_mtd || {};
-        } else {
-            amount = stats.total_book_value_ytd || 0;
-            insights = stats.book_value_insights_ytd || {};
-        }
+        // Always use MTD (Month to Date) data
+        const amount = stats.total_book_value_mtd || 0;
+        const insights = stats.book_value_insights_mtd || {};
         
         // Format as currency
         const formatted = new Intl.NumberFormat('en-US', {
@@ -230,44 +360,162 @@ class VehicleDashboard {
         
         // Add + or - sign based on the value
         const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
-        const displayValue = amount === 0 ? '$0' : sign + formatted;
-        
-        const element = document.getElementById('book-value-amount');
-        element.textContent = displayValue;
-        
-        // Color coding
-        if (amount > 0) {
-            element.style.color = '#059669';
-        } else if (amount < 0) {
-            element.style.color = '#dc2626';
-        } else {
-            element.style.color = '#6b7280';
-        }
-        
-        // Update the source label to show which category is being displayed
-        const sourceElement = document.getElementById('book-value-source');
-        if (sourceElement) {
-            const primarySource = insights.primary_source || 'KBB';
-            sourceElement.textContent = primarySource;
-        }
-        
-        // Store current insights for modal
+        // Store current insights for sidebar
         this.currentBookValueInsights = insights;
-        this.currentBookValuePeriod = period;
+        this.currentBookValuePeriod = 'mtd'; // Always use MTD
         this.currentBookValueAmount = amount;
+        
+        // Always update sidebar since it's always visible
+        this.updateSidebarContent();
+    }
+    
+    updateSidebarContent() {
+        if (!this.currentBookValueInsights) {
+            return;
+        }
+        
+        const insights = this.currentBookValueInsights;
+        const period = this.currentBookValuePeriod;
+        const amount = this.currentBookValueAmount;
+        
+        // Sidebar subtitle is now static "Recent Activity" - no need to update
+        
+        // Populate cards
+        const cardsContainer = document.getElementById('book-value-cards-container');
+        const emptyState = document.getElementById('sidebar-empty');
+        
+        cardsContainer.innerHTML = '';
+        
+        const categories = insights.categories || {};
+        const categoryKeys = Object.keys(categories);
+        
+        // Filter out categories with zero difference
+        const nonZeroCategories = categoryKeys.filter(category => {
+            const data = categories[category];
+            const difference = data.difference || 0;
+            return difference !== 0;
+        });
+        
+        if (nonZeroCategories.length === 0) {
+            cardsContainer.style.display = 'none';
+            emptyState.style.display = 'block';
+        } else {
+            cardsContainer.style.display = 'block';
+            emptyState.style.display = 'none';
+            
+            nonZeroCategories.forEach(category => {
+                const data = categories[category];
+                const difference = data.difference || 0;
+                
+                // Format currency values
+                const formatCurrency = (amount) => {
+                    return new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: 'USD',
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                    }).format(Math.abs(amount));
+                };
+                
+                // Determine styling class
+                let cardClass = 'neutral';
+                let amountClass = 'neutral';
+                if (difference > 0) {
+                    cardClass = 'positive';
+                    amountClass = 'positive';
+                } else if (difference < 0) {
+                    cardClass = 'negative';
+                    amountClass = 'negative';
+                }
+                
+                const changeFormatted = (difference > 0 ? '+' : '') + formatCurrency(difference);
+                
+                const card = document.createElement('div');
+                card.className = `book-value-card ${cardClass}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="card-source">${category}</div>
+                        <div class="card-amount ${amountClass}">${changeFormatted}</div>
+                    </div>
+                    <div class="card-meta">Recent Activity</div>
+                `;
+                
+                cardsContainer.appendChild(card);
+            });
+        }
+    }
+
+    handleDateFilterChange(dateRange) {
+        this.currentDateRange = dateRange;
+        console.log('Dashboard handleDateFilterChange called with:', dateRange);
+        
+        // Refresh all data with new date range
+        console.log('Refreshing statistics and vehicles with new date range...');
+        this.loadStatistics();
+        this.loadVehicles();
+    }
+    
+    initializeMobileSidebar() {
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+        const sidebar = document.getElementById('book-value-sidebar');
+        
+        // Show/hide toggle button based on screen size
+        const updateToggleVisibility = () => {
+            if (window.innerWidth <= 1024) {
+                sidebarToggle.style.display = 'block';
+            } else {
+                sidebarToggle.style.display = 'none';
+                sidebar.classList.remove('mobile-open');
+                sidebarOverlay.classList.remove('active');
+            }
+        };
+        
+        // Initial check
+        updateToggleVisibility();
+        
+        // Listen for window resize
+        window.addEventListener('resize', updateToggleVisibility);
+        
+        // Toggle sidebar on button click
+        sidebarToggle.addEventListener('click', () => {
+            this.toggleMobileSidebar();
+        });
+        
+        // Close sidebar when clicking overlay
+        sidebarOverlay.addEventListener('click', () => {
+            this.closeMobileSidebar();
+        });
+    }
+    
+    toggleMobileSidebar() {
+        const sidebar = document.getElementById('book-value-sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        
+        if (sidebar.classList.contains('mobile-open')) {
+            this.closeMobileSidebar();
+        } else {
+            sidebar.classList.add('mobile-open');
+            overlay.classList.add('active');
+        }
+    }
+    
+    closeMobileSidebar() {
+        const sidebar = document.getElementById('book-value-sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        
+        sidebar.classList.remove('mobile-open');
+        overlay.classList.remove('active');
     }
     
     getVehicleCountForPeriod(period) {
+        // Always use MTD calculation since period selection was removed
         // This is a simplified count - in a real implementation, 
         // you might want to add this data to the statistics response
         const stats = this.statistics;
-        if (period === 'mtd') {
-            // For now, use a portion of successful processing as an estimate
-            // In production, you'd want the backend to provide this specific count
-            return Math.floor((stats.successful_processing || 0) * 0.3); // Rough estimate
-        } else {
-            return stats.successful_processing || 0;
-        }
+        // For now, use a portion of successful processing as an estimate
+        // In production, you'd want the backend to provide this specific count
+        return Math.floor((stats.successful_processing || 0) * 0.3); // Rough estimate for MTD
     }
 
     async loadVehicles() {
@@ -277,12 +525,24 @@ class VehicleDashboard {
                 per_page: this.perPage,
                 search: this.currentSearch
             });
+            
+            // Add date range parameters if available
+            if (this.currentDateRange && this.currentDateRange.start && this.currentDateRange.end) {
+                params.append('start_date', this.currentDateRange.start);
+                params.append('end_date', this.currentDateRange.end);
+                console.log('Added date filters:', this.currentDateRange.start, 'to', this.currentDateRange.end);
+            }
+            
+            const url = `/api/vehicles?${params}`;
+            console.log('Loading vehicles with URL:', url);
 
-            const response = await authenticatedFetch(`/api/vehicles?${params}`);
+            const response = await authenticatedFetch(url);
             const data = await response.json();
             
             if (data.success) {
                 this.vehicles = data.vehicles;
+                console.log(`Loaded ${data.vehicles.length} vehicles for date range:`, this.currentDateRange);
+                console.log('Total vehicles in database:', data.pagination.total);
                 this.updateVehiclesDisplay();
                 this.updatePagination(data.pagination);
                 this.updateResultsCount(data.pagination);
@@ -518,10 +778,15 @@ class VehicleDashboard {
         const start = (pagination.page - 1) * pagination.per_page + 1;
         const end = Math.min(pagination.page * pagination.per_page, pagination.total);
         
+        let filterInfo = '';
+        if (this.currentDateRange) {
+            filterInfo = ` (${this.currentDateRange.label})`;
+        }
+        
         if (pagination.total === 0) {
-            resultsCount.textContent = 'No results found';
+            resultsCount.textContent = `No results found${filterInfo}`;
         } else {
-            resultsCount.textContent = `Showing ${start}-${end} of ${pagination.total} vehicles`;
+            resultsCount.textContent = `Showing ${start}-${end} of ${pagination.total} vehicles${filterInfo}`;
         }
     }
 
@@ -1028,110 +1293,7 @@ class VehicleDashboard {
     }
 }
 
-// Book Value Modal Functions
-function showBookValueModal() {
-    if (!dashboard || !dashboard.currentBookValueInsights) {
-        console.warn('No book value insights available');
-        return;
-    }
-    
-    const insights = dashboard.currentBookValueInsights;
-    const period = dashboard.currentBookValuePeriod;
-    const amount = dashboard.currentBookValueAmount;
-    
-    // Update modal title and summary
-    const periodText = period === 'mtd' ? 'Month to Date' : 'Year to Date';
-    document.getElementById('book-value-modal-title').textContent = `Book Value Changes - ${periodText}`;
-    document.getElementById('breakdown-period').textContent = periodText;
-    
-    // Format total amount
-    const formatted = new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    }).format(Math.abs(amount));
-    
-    const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
-    document.getElementById('breakdown-total').textContent = amount === 0 ? '$0' : sign + formatted;
-    
-    // Update description
-    let description = 'Primary source difference';
-    if (amount > 0) {
-        description = `Positive ${description}`;
-    } else if (amount < 0) {
-        description = `Negative ${description}`;
-    } else {
-        description = 'No significant value changes detected';
-    }
-    document.getElementById('breakdown-description').textContent = description;
-    
-    // Populate table
-    const tableBody = document.getElementById('book-value-table-body');
-    const tableEmpty = document.getElementById('table-empty');
-    const tableWrapper = document.querySelector('.table-wrapper');
-    
-    tableBody.innerHTML = '';
-    
-    const categories = insights.categories || {};
-    const categoryKeys = Object.keys(categories);
-    
-    // Filter out categories with zero difference
-    const nonZeroCategories = categoryKeys.filter(category => {
-        const data = categories[category];
-        const difference = data.difference || 0;
-        return difference !== 0;
-    });
-    
-    if (nonZeroCategories.length === 0) {
-        tableWrapper.style.display = 'none';
-        tableEmpty.style.display = 'block';
-    } else {
-        tableWrapper.style.display = 'block';
-        tableEmpty.style.display = 'none';
-        
-        nonZeroCategories.forEach(category => {
-            const data = categories[category];
-            const difference = data.difference || 0;
-            
-            const row = document.createElement('tr');
-            
-            // Format currency values
-            const formatCurrency = (amount) => {
-                return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                }).format(Math.abs(amount));
-            };
-            
-            // Determine change styling
-            let changeClass = 'change-neutral';
-            if (difference > 0) {
-                changeClass = 'change-positive';
-            } else if (difference < 0) {
-                changeClass = 'change-negative';
-            }
-            
-            const changeFormatted = (difference > 0 ? '+' : '') + formatCurrency(difference);
-            
-            row.innerHTML = `
-                <td class="source-name">${category}</td>
-                <td class="currency-value ${changeClass}">${changeFormatted}</td>
-            `;
-            
-            tableBody.appendChild(row);
-        });
-    }
-    
-    // Show modal
-    document.getElementById('book-value-modal').style.display = 'flex';
-}
 
-function closeBookValueModal() {
-    document.getElementById('book-value-modal').style.display = 'none';
-}
 
 // Global functions for HTML onclick handlers
 let dashboard;
@@ -1157,13 +1319,44 @@ function loadVehicles() {
 }
 
 // Initialize dashboard when DOM is loaded
+// Debug function to check date distribution
+async function debugDateDistribution() {
+    try {
+        const response = await authenticatedFetch('/api/debug/date-distribution');
+        const data = await response.json();
+        if (data.success) {
+            console.log('=== Date Distribution Debug ===');
+            console.log('Date range:', data.date_range);
+            console.log('Total days with data:', data.total_days);
+            console.log('Current month count:', data.current_month_count);
+            console.log('Current year count:', data.current_year_count);
+            console.log('Distribution by date:');
+            data.date_distribution.forEach(d => {
+                console.log(`  ${d.date} (${d.day_name}): ${d.count} vehicles`);
+            });
+            console.log('==============================');
+        }
+    } catch (error) {
+        console.error('Error fetching date distribution:', error);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const token = localStorage.getItem('token');
     if (!token) {
         window.location.href = '/login';
         return;
     }
+    
+    // Initialize global date filter BEFORE dashboard
+    window.globalDateFilter = new GlobalDateFilter();
+    
+    // Now initialize dashboard - it will use the date filter
     dashboard = new VehicleDashboard();
+    window.dashboard = dashboard; // Make dashboard accessible globally
+    
+    // Run debug to see date distribution
+    debugDateDistribution();
     
     // Add CSS for modal sections and processing status
     const style = document.createElement('style');

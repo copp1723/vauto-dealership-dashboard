@@ -31,6 +31,20 @@
                             Store: <span id="store-id">Loading...</span>
                         </span>
                     </div>
+                    <div class="date-filter-container">
+                        <div class="date-filter-label">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Date Range:</span>
+                        </div>
+                        <select id="global-date-filter" class="date-filter-dropdown">
+                            <option value="mtd">Month to Date</option>
+                            <option value="ytd">Year to Date</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                        <div class="current-range-display" id="current-range-display">
+                            This Month
+                        </div>
+                    </div>
                     <button class="btn btn-outline" onclick="refreshData()">
                         <i class="fas fa-sync-alt"></i> Refresh
                     </button>
@@ -42,10 +56,38 @@
         </div>
     </header>
 
+    <!-- Mobile Sidebar Toggle -->
+    <button class="sidebar-toggle" id="sidebar-toggle" style="display: none;">
+        <i class="fas fa-chart-line"></i>
+    </button>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
     <!-- Main Content -->
     <main class="main-content">
-        <div class="container">
-            <!-- Statistics Section -->
+        <div class="dashboard-layout">
+            <div class="sidebar" id="book-value-sidebar">
+                <div class="sidebar-header">
+                    <div class="header-content">
+                        <h3 id="sidebar-title">Book Value Changes</h3>
+                        <p class="sidebar-subtitle" id="sidebar-breakdown-period">Recent Activity</p>
+                    </div>
+                </div>
+                <div class="sidebar-content">
+                    <div class="book-value-cards" id="book-value-cards-container">
+                        <!-- Book value cards will be populated here -->
+                    </div>
+                    <div class="sidebar-empty" id="sidebar-empty" style="display: none;">
+                        <div class="empty-icon">📊</div>
+                        <p>No value changes detected for this period</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="main-container">
+                <div class="container">
+                    <!-- Statistics Section -->
             <section class="statistics-section">
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -77,27 +119,6 @@
                         <div class="stat-content">
                             <div class="stat-number" id="total-features">-</div>
                             <div class="stat-label">Features Marked</div>
-                        </div>
-                    </div>
-                    
-                    <div class="stat-card book-value-card clickable-card" onclick="showBookValueModal()">
-                        <div class="stat-icon premium">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <div class="stat-content">
-                            <div class="stat-number" id="book-value-amount">$0</div>
-                            <div class="stat-label">
-                                <span id="book-value-source">KBB</span> BOOK VALUE CHANGE
-                            </div>
-                            <div class="book-value-controls">
-                                <select id="book-value-period" class="period-dropdown" onclick="event.stopPropagation()">
-                                    <option value="mtd">Month to Date</option>
-                                    <option value="ytd">Year to Date</option>
-                                </select>
-                            </div>
-                            <div class="book-value-subtitle">
-                                <small class="text-muted">Click for all categories</small>
-                            </div>
                         </div>
                     </div>
                     
@@ -186,7 +207,8 @@
                 </div>
             </section>
 
-
+                </div>
+            </div>
         </div>
     </main>
 
@@ -236,42 +258,40 @@
         </div>
     </div>
 
-    <!-- Book Value Details Modal -->
-    <div class="modal" id="book-value-modal">
-        <div class="modal-content">
+    <!-- Custom Date Range Modal -->
+    <div class="modal" id="date-range-modal">
+        <div class="modal-content modal-small">
             <div class="modal-header">
-                <h3 id="book-value-modal-title">Book Value Changes</h3>
-                <button class="modal-close" onclick="closeBookValueModal()">
+                <h3>Select Custom Date Range</h3>
+                <button class="modal-close" onclick="closeDateRangeModal()">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <div class="book-value-breakdown">
-                    <div class="breakdown-summary">
-                        <h4 id="breakdown-period">Month to Date</h4>
-                        <div class="total-impact" id="breakdown-total">$0</div>
-                        <p class="impact-description" id="breakdown-description">Primary source difference</p>
+                <div class="date-range-form">
+                    <div class="date-input-group">
+                        <label for="start-date">Start Date</label>
+                        <input type="date" id="start-date" class="date-input">
                     </div>
-                    
-                    <div class="breakdown-table-container">
-                        <h5>All Valuation Sources</h5>
-                        <div class="table-wrapper">
-                            <table class="book-value-table" id="book-value-table">
-                                <thead>
-                                    <tr>
-                                        <th>Category</th>
-                                        <th>Change</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="book-value-table-body">
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="table-empty" id="table-empty" style="display: none;">
-                            <div class="empty-icon">📊</div>
-                            <p>No value changes detected for this period</p>
+                    <div class="date-input-group">
+                        <label for="end-date">End Date</label>
+                        <input type="date" id="end-date" class="date-input">
+                    </div>
+                    <div class="date-range-presets">
+                        <h4>Quick Select</h4>
+                        <div class="preset-buttons">
+                            <button class="btn btn-sm btn-outline" onclick="selectPresetRange('last7days')">Last 7 Days</button>
+                            <button class="btn btn-sm btn-outline" onclick="selectPresetRange('last30days')">Last 30 Days</button>
+                            <button class="btn btn-sm btn-outline" onclick="selectPresetRange('last90days')">Last 90 Days</button>
+                            <button class="btn btn-sm btn-outline" onclick="selectPresetRange('thisyear')">This Year</button>
                         </div>
                     </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeDateRangeModal()">Cancel</button>
+                    <button class="btn btn-primary" id="apply-date-range-btn" onclick="applyCustomDateRange()">
+                        <i class="fas fa-check"></i> Apply Range
+                    </button>
                 </div>
             </div>
         </div>
@@ -380,6 +400,82 @@
                 // Redirect to login if there's an error
                 window.location.href = '/login';
             }
+        }
+
+        // Global Date Filter Functions
+        function closeDateRangeModal() {
+            const modal = document.getElementById('date-range-modal');
+            modal.style.display = 'none';
+            // Reset dropdown to previous value if custom was cancelled
+            if (window.globalDateFilter && window.globalDateFilter.currentFilter !== 'custom') {
+                document.getElementById('global-date-filter').value = window.globalDateFilter.currentFilter;
+            }
+        }
+
+        function selectPresetRange(preset) {
+            const today = new Date();
+            const startDateInput = document.getElementById('start-date');
+            const endDateInput = document.getElementById('end-date');
+            
+            switch (preset) {
+                case 'last7days':
+                    const sevenDaysAgo = new Date(today);
+                    sevenDaysAgo.setDate(today.getDate() - 7);
+                    startDateInput.value = sevenDaysAgo.toISOString().split('T')[0];
+                    endDateInput.value = today.toISOString().split('T')[0];
+                    break;
+                case 'last30days':
+                    const thirtyDaysAgo = new Date(today);
+                    thirtyDaysAgo.setDate(today.getDate() - 30);
+                    startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+                    endDateInput.value = today.toISOString().split('T')[0];
+                    break;
+                case 'last90days':
+                    const ninetyDaysAgo = new Date(today);
+                    ninetyDaysAgo.setDate(today.getDate() - 90);
+                    startDateInput.value = ninetyDaysAgo.toISOString().split('T')[0];
+                    endDateInput.value = today.toISOString().split('T')[0];
+                    break;
+                case 'thisyear':
+                    const startOfYear = new Date(today.getFullYear(), 0, 1);
+                    startDateInput.value = startOfYear.toISOString().split('T')[0];
+                    endDateInput.value = today.toISOString().split('T')[0];
+                    break;
+            }
+        }
+
+        function applyCustomDateRange() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            
+            if (!startDate || !endDate) {
+                alert('Please select both start and end dates');
+                return;
+            }
+            
+            if (new Date(startDate) > new Date(endDate)) {
+                alert('Start date cannot be later than end date');
+                return;
+            }
+            
+            if (window.globalDateFilter) {
+                console.log('Applying custom date range:', startDate, 'to', endDate);
+                window.globalDateFilter.customStartDate = startDate;
+                window.globalDateFilter.customEndDate = endDate;
+                window.globalDateFilter.currentFilter = 'custom';
+                window.globalDateFilter.updateRangeDisplay();
+                window.globalDateFilter.notifyFilterChange();
+                
+                // Update the dropdown to show 'custom' is selected
+                const dropdown = document.getElementById('global-date-filter');
+                if (dropdown) {
+                    dropdown.value = 'custom';
+                }
+                
+                console.log('Custom date range applied, filter object:', window.globalDateFilter.getDateRange());
+            }
+            
+            closeDateRangeModal();
         }
         
         // Check if user is authenticated on page load
