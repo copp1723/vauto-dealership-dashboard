@@ -26,10 +26,22 @@
                             <i class="fas fa-user"></i> 
                             <span id="username">Loading...</span>
                         </span>
-                        <span class="store-id">
-                            <i class="fas fa-store"></i> 
-                            Store: <span id="store-id">Loading...</span>
+                        <span class="user-role">
+                            <i class="fas fa-shield-alt"></i>
+                            Role: <span id="user-role">Loading...</span>
                         </span>
+                        <span class="store-info">
+                            <i class="fas fa-store"></i> 
+                            <span id="store-selector-container">
+                                Store: <span id="store-id">Loading...</span>
+                            </span>
+                        </span>
+                        <!-- User Management Button for Admins -->
+                        <div class="admin-controls" id="admin-controls" style="display: none;">
+                            <a href="/users" class="btn btn-secondary">
+                                <i class="fas fa-users"></i> Manage Users
+                            </a>
+                        </div>
                     </div>
                     <div class="date-filter-container">
                         <div class="date-filter-label">
@@ -75,6 +87,14 @@
                     </div>
                 </div>
                 <div class="sidebar-content">
+                    <div class="loading-overlay" id="sidebar-loading">
+                        <div class="loading-content">
+                            <div class="loading-spinner-large">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="loading-text">Loading book values...</p>
+                        </div>
+                    </div>
                     <div class="book-value-cards" id="book-value-cards-container">
                         <!-- Book value cards will be populated here -->
                     </div>
@@ -88,7 +108,15 @@
             <div class="main-container">
                 <div class="container">
                     <!-- Statistics Section -->
-            <section class="statistics-section">
+            <section class="statistics-section" style="position: relative;">
+                <div class="loading-overlay" id="stats-loading">
+                    <div class="loading-content">
+                        <div class="loading-spinner-large">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                        <p class="loading-text">Loading statistics...</p>
+                    </div>
+                </div>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon">
@@ -171,12 +199,87 @@
                     </div>
                 </div>
 
-                <!-- Loading State -->
-                <div class="loading-state" id="loading-state">
-                    <div class="loading-spinner">
-                        <i class="fas fa-spinner fa-spin"></i>
+                <!-- Loading State with Skeleton Loaders -->
+                <div class="loading-state" id="loading-state" style="display: none;">
+                    <div class="skeleton-container">
+                        <!-- Featured/Recent Vehicles Section Skeleton -->
+                        <div class="featured-section">
+                            <h3><i class="fas fa-star"></i> Recently Processed Vehicles</h3>
+                            <div class="featured-grid">
+                                <div class="vehicle-card-skeleton">
+                                    <div class="skeleton-header">
+                                        <div class="skeleton skeleton-title"></div>
+                                        <div class="skeleton skeleton-badge"></div>
+                                    </div>
+                                    <div class="skeleton-content">
+                                        <div class="skeleton skeleton-line medium"></div>
+                                        <div class="skeleton skeleton-line short"></div>
+                                        <div class="skeleton skeleton-line long"></div>
+                                    </div>
+                                    <div class="skeleton-actions">
+                                        <div class="skeleton skeleton-button"></div>
+                                        <div class="skeleton skeleton-button"></div>
+                                    </div>
+                                </div>
+                                <div class="vehicle-card-skeleton">
+                                    <div class="skeleton-header">
+                                        <div class="skeleton skeleton-title"></div>
+                                        <div class="skeleton skeleton-badge"></div>
+                                    </div>
+                                    <div class="skeleton-content">
+                                        <div class="skeleton skeleton-line medium"></div>
+                                        <div class="skeleton skeleton-line short"></div>
+                                        <div class="skeleton skeleton-line long"></div>
+                                    </div>
+                                    <div class="skeleton-actions">
+                                        <div class="skeleton skeleton-button"></div>
+                                        <div class="skeleton skeleton-button"></div>
+                                    </div>
+                                </div>
+                                <div class="vehicle-card-skeleton">
+                                    <div class="skeleton-header">
+                                        <div class="skeleton skeleton-title"></div>
+                                        <div class="skeleton skeleton-badge"></div>
+                                    </div>
+                                    <div class="skeleton-content">
+                                        <div class="skeleton skeleton-line medium"></div>
+                                        <div class="skeleton skeleton-line short"></div>
+                                        <div class="skeleton skeleton-line long"></div>
+                                    </div>
+                                    <div class="skeleton-actions">
+                                        <div class="skeleton skeleton-button"></div>
+                                        <div class="skeleton skeleton-button"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- All Vehicles Section Skeleton -->
+                        <div class="remaining-section">
+                            <h3><i class="fas fa-list"></i> All Vehicles</h3>
+                            <div class="vehicle-list">
+                                <div class="vehicle-card-skeleton">
+                                    <div class="skeleton-header">
+                                        <div class="skeleton skeleton-title"></div>
+                                        <div class="skeleton skeleton-badge"></div>
+                                    </div>
+                                    <div class="skeleton-content">
+                                        <div class="skeleton skeleton-line medium"></div>
+                                        <div class="skeleton skeleton-line short"></div>
+                                    </div>
+                                </div>
+                                <div class="vehicle-card-skeleton">
+                                    <div class="skeleton-header">
+                                        <div class="skeleton skeleton-title"></div>
+                                        <div class="skeleton skeleton-badge"></div>
+                                    </div>
+                                    <div class="skeleton-content">
+                                        <div class="skeleton skeleton-line medium"></div>
+                                        <div class="skeleton skeleton-line short"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <p>Loading vehicle data...</p>
                 </div>
 
                 <!-- Error State -->
@@ -297,6 +400,8 @@
         </div>
     </div>
 
+
+
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container">
         <!-- Toast notifications will appear here -->
@@ -379,6 +484,10 @@
             }
         }
         
+        // Current user data
+        let currentUser = null;
+        window.selectedStoreId = null;
+        
         // Load user information
         async function loadUserInfo() {
             try {
@@ -392,8 +501,24 @@
                 const userData = await response.json();
                 
                 if (userData) {
+                    currentUser = userData;
                     document.getElementById('username').textContent = userData.username || 'Unknown';
-                    document.getElementById('store-id').textContent = userData.store_id || 'Unknown';
+                    document.getElementById('user-role').textContent = userData.role_display || userData.role || 'Unknown';
+                    
+                    // Handle store display and selector
+                    await setupStoreSelector(userData);
+                    
+                    // Show admin controls if user is admin or super admin
+                    if (userData.role === 'admin' || userData.role === 'super_admin') {
+                        document.getElementById('admin-controls').style.display = 'block';
+                    }
+                    
+                    // Initialize dashboard with data after store selector is set up
+                    if (window.dashboard && window.dashboard.initialize) {
+                        window.dashboard.initialize();
+                    } else if (typeof refreshData === 'function') {
+                        refreshData();
+                    }
                 }
             } catch (error) {
                 console.error('Error loading user info:', error);
@@ -401,6 +526,102 @@
                 window.location.href = '/login';
             }
         }
+
+        // Store selector functions
+        async function setupStoreSelector(userData) {
+            const container = document.getElementById('store-selector-container');
+            
+            if (userData.role === 'super_admin' || (userData.store_ids && userData.store_ids.length > 1)) {
+                try {
+                    // Fetch available stores from API
+                    const response = await fetch('/api/stores', {
+                        headers: {
+                            'Authorization': 'Bearer ' + localStorage.getItem('token')
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch stores');
+                    }
+                    
+                    const data = await response.json();
+                    const availableStores = data.stores || [];
+                    
+                    if (availableStores.length > 0) {
+                        // Create dropdown for store selection
+                        container.innerHTML = `
+                            <div class="store-selector">
+                                <label for="store-selector-dropdown">Store:</label>
+                                <select id="store-selector-dropdown" class="store-dropdown" onchange="selectStore(this.value)">
+                                    ${userData.role === 'super_admin' ? '<option value="">All Stores</option>' : ''}
+                                    ${availableStores.map(storeId => 
+                                        `<option value="${storeId}">${storeId}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        `;
+                        
+                        // Set initial store selection
+                        if (userData.role === 'super_admin') {
+                            window.selectedStoreId = ''; // Always default to 'All Stores' on page refresh
+                        } else {
+                            window.selectedStoreId = userData.store_ids[0];
+                        }
+                        
+                        const dropdown = document.getElementById('store-selector-dropdown');
+                        if (dropdown) {
+                            dropdown.value = window.selectedStoreId;
+                        }
+                    } else {
+                        // No stores available
+                        container.innerHTML = `Store: <span id="store-id">No stores available</span>`;
+                    }
+                } catch (error) {
+                    console.error('Error fetching stores:', error);
+                    // Fallback to displaying current user's stores
+                    if (userData.store_ids && userData.store_ids.length > 0) {
+                        container.innerHTML = `
+                            <div class="store-selector">
+                                <label for="store-selector-dropdown">Store:</label>
+                                <select id="store-selector-dropdown" class="store-dropdown" onchange="selectStore(this.value)">
+                                    ${userData.role === 'super_admin' ? '<option value="">All Stores</option>' : ''}
+                                    ${userData.store_ids.map(storeId => 
+                                        `<option value="${storeId}">${storeId}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        `;
+                        // Set initial selection for admin users in fallback scenario
+                        if (userData.role === 'super_admin') {
+                            window.selectedStoreId = '';
+                        } else {
+                            window.selectedStoreId = userData.store_ids[0];
+                        }
+                        const dropdown = document.getElementById('store-selector-dropdown');
+                        if (dropdown) {
+                            dropdown.value = window.selectedStoreId;
+                        }
+                    }
+                }
+            } else {
+                // Single store user - just display the store
+                const storeId = userData.store_ids?.[0] || userData.store_id || 'Unknown';
+                window.selectedStoreId = storeId;
+                container.innerHTML = `Store: <span id="store-id">${storeId}</span>`;
+            }
+        }
+
+        function selectStore(storeId) {
+            console.log('selectStore called with:', storeId);
+            window.selectedStoreId = storeId;
+            
+            console.log('Updated window.selectedStoreId to:', window.selectedStoreId);
+            
+            // Refresh data with new store selection
+            refreshData();
+        }
+
+
 
         // Global Date Filter Functions
         function closeDateRangeModal() {

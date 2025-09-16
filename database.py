@@ -9,12 +9,13 @@ import json
 import hashlib
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Boolean, Integer
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Boolean, Integer, Enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
 from passlib.context import CryptContext
+import enum
 
 # Load environment variables
 load_dotenv()
@@ -23,7 +24,24 @@ load_dotenv()
 Base = declarative_base()
 
 # Password context for hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Workaround for bcrypt 4.x compatibility issue with passlib
+try:
+    # Try to use bcrypt directly if available
+    import bcrypt as _bcrypt_module
+    pwd_context = CryptContext(
+        schemes=["bcrypt"],
+        deprecated="auto",
+        bcrypt__ident="2b"  # Use 2b variant
+    )
+except Exception:
+    # Fallback to sha256_crypt if bcrypt fails
+    pwd_context = CryptContext(schemes=["sha256_crypt", "md5_crypt"], deprecated="auto")
+
+# Role enumeration for user access levels
+class UserRole(enum.Enum):
+    SUPER_ADMIN = "super_admin"  # Can access all stores, manage all users
+    ADMIN = "admin"             # Can access assigned stores, manage regular users
+    USER = "user"               # Can only access assigned single store
 
 
 class User(Base):
@@ -33,7 +51,11 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
     password_hash = Column(String(128), nullable=False)  # Bcrypt hash
-    store_id = Column(String(100), nullable=False, index=True)  # Environment ID for filtering
+    role = Column(Enum(UserRole), nullable=False, default=UserRole.USER, index=True)  # User role
+    store_ids = Column(Text, nullable=True)  # JSON array of store IDs for multi-store access
+    store_id = Column(String(100), nullable=True, index=True)  # Backward compatibility (deprecated)
+    created_by_id = Column(Integer, nullable=True, index=True)  # ID of user who created this account
+    is_active = Column(Boolean, default=True, nullable=False)  # Account active status
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
     
@@ -49,18 +71,74 @@ class User(Base):
             # Fallback for old SHA256 hashes
             return self.password_hash == hashlib.sha256(password.encode()).hexdigest()
     
+    def get_store_ids(self) -> List[str]:
+        """Get list of accessible store IDs for this user"""
+        if self.role == UserRole.SUPER_ADMIN:
+            # Super admin can access all stores - return empty list to indicate "all"
+            return []
+        elif self.store_ids:
+            try:
+                return json.loads(self.store_ids)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        elif self.store_id:  # Backward compatibility
+            return [self.store_id]
+        else:
+            return []
+    
+    def set_store_ids(self, store_ids: List[str]):
+        """Set accessible store IDs for this user"""
+        if store_ids:
+            self.store_ids = json.dumps(store_ids)
+        else:
+            self.store_ids = None
+    
+    def can_access_store(self, store_id: str) -> bool:
+        """Check if user can access a specific store"""
+        if self.role == UserRole.SUPER_ADMIN:
+            return True  # Super admin can access any store
+        
+        accessible_stores = self.get_store_ids()
+        return store_id in accessible_stores
+    
+    def can_manage_user(self, target_user: 'User') -> bool:
+        """Check if this user can manage (create/edit/delete) another user"""
+        if self.role == UserRole.SUPER_ADMIN:
+            # Super admin can manage admins and users
+            return target_user.role in [UserRole.ADMIN, UserRole.USER]
+        elif self.role == UserRole.ADMIN:
+            # Admin can only manage users they created or regular users
+            return (target_user.role == UserRole.USER and 
+                    (target_user.created_by_id == self.id or target_user.created_by_id is None))
+        else:
+            return False  # Regular users can't manage other users
+    
+    def get_role_display(self) -> str:
+        """Get human-readable role name"""
+        role_names = {
+            UserRole.SUPER_ADMIN: "Super Administrator",
+            UserRole.ADMIN: "Administrator", 
+            UserRole.USER: "User"
+        }
+        return role_names.get(self.role, str(self.role.value))
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert user to dictionary for JSON serialization"""
         return {
             'id': self.id,
             'username': self.username,
-            'store_id': self.store_id,
+            'role': self.role.value,
+            'role_display': self.get_role_display(),
+            'store_ids': self.get_store_ids(),
+            'store_id': self.store_id,  # Keep for backward compatibility
+            'created_by_id': self.created_by_id,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None
         }
     
     def __repr__(self):
-        return f"<User(username='{self.username}', store_id='{self.store_id}')>"
+        return f"<User(username='{self.username}', role='{self.role.value}', stores={len(self.get_store_ids())})>"
 
 
 def build_postgres_url_from_env() -> str:
@@ -200,8 +278,31 @@ class VehicleDatabaseManager:
         """Create database tables"""
         try:
             Base.metadata.create_all(bind=self.engine)
+            # Run user migration after creating tables
+            self._migrate_users_if_needed()
         except Exception as e:
             print(f"Error creating database tables: {e}")
+    
+    def _migrate_users_if_needed(self):
+        """Check if users need migration and perform it if necessary"""
+        try:
+            with self.get_session() as session:
+                # Check if there are any users without roles (old schema)
+                users_without_roles = session.query(User).filter(User.role.is_(None)).count()
+                
+                if users_without_roles > 0:
+                    print(f"Found {users_without_roles} users that need migration...")
+                    migrate_users_to_role_system(self)
+                    
+                # Check if we need to create the first super admin
+                super_admins = session.query(User).filter(User.role == UserRole.SUPER_ADMIN).count()
+                if super_admins == 0:
+                    print("No super admin found. Creating default super admin...")
+                    create_super_admin(self)
+                    
+        except Exception as e:
+            print(f"Warning: Could not check user migration status: {e}")
+            # This might happen on first run when tables don't exist yet
     
     def get_session(self) -> Session:
         """Get database session"""
@@ -507,6 +608,85 @@ def main():
     report = db.generate_processing_report(days=30)
     print(f"\nProcessing Report:")
     print(json.dumps(report, indent=2))
+
+
+def migrate_users_to_role_system(db_manager):
+    """
+    Migrate existing users to the new role-based system.
+    This function should be called once after updating the database schema.
+    """
+    print("Starting user migration to role-based system...")
+    
+    try:
+        with db_manager.get_session() as session:
+            # Get all existing users
+            users = session.query(User).all()
+            
+            if not users:
+                print("No existing users found to migrate.")
+                return
+            
+            # Update existing users
+            for user in users:
+                # If role is not set, default to USER
+                if not hasattr(user, 'role') or user.role is None:
+                    user.role = UserRole.USER
+                
+                # Migrate single store_id to store_ids JSON array
+                if user.store_id and not user.store_ids:
+                    user.set_store_ids([user.store_id])
+                
+                # Set default values for new fields
+                if not hasattr(user, 'is_active') or user.is_active is None:
+                    user.is_active = True
+                
+                print(f"Migrated user: {user.username} -> Role: {user.role.value}")
+            
+            session.commit()
+            print(f"Successfully migrated {len(users)} users to role-based system.")
+            
+    except Exception as e:
+        print(f"Error during user migration: {e}")
+        raise
+
+
+def create_super_admin(db_manager, username: str = "superadmin", password: str = "admin123"):
+    """
+    Create the first super admin user. This should be called during initial setup.
+    """
+    print(f"Creating super admin user: {username}")
+    
+    try:
+        with db_manager.get_session() as session:
+            # Check if this specific username already exists
+            existing_user = session.query(User).filter(
+                User.username == username
+            ).first()
+            
+            if existing_user:
+                print(f"User already exists: {existing_user.username}")
+                return existing_user
+            
+            # Create new super admin
+            super_admin = User(
+                username=username,
+                role=UserRole.SUPER_ADMIN,
+                is_active=True
+            )
+            super_admin.set_password(password)
+            
+            session.add(super_admin)
+            session.commit()
+            
+            print(f"Super admin created successfully: {username}")
+            print(f"Default password: {password}")
+            print("⚠️  IMPORTANT: Change the default password immediately after first login!")
+            
+            return super_admin
+            
+    except Exception as e:
+        print(f"Error creating super admin: {e}")
+        raise
 
 
 if __name__ == "__main__":

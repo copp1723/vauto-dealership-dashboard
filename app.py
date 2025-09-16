@@ -23,7 +23,7 @@ from passlib.context import CryptContext
 
 load_dotenv()
 
-from database import get_database_manager, User
+from database import get_database_manager, User, UserRole
 
 # JWT Configuration
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -32,7 +32,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Security
 security = HTTPBearer()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Workaround for bcrypt 4.x compatibility issue with passlib
+try:
+    # Try to use bcrypt directly if available
+    import bcrypt as _bcrypt_module
+    pwd_context = CryptContext(
+        schemes=["bcrypt"],
+        deprecated="auto",
+        bcrypt__ident="2b"  # Use 2b variant
+    )
+except Exception:
+    # Fallback to sha256_crypt if bcrypt fails
+    pwd_context = CryptContext(schemes=["sha256_crypt", "md5_crypt"], deprecated="auto")
 
 # Pydantic Models for API responses
 class VehicleInfo(BaseModel):
@@ -159,7 +170,15 @@ class ErrorResponse(BaseModel):
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=6)
-    store_id: str = Field(..., min_length=1, max_length=100)
+    role: str = Field(..., description="User role: super_admin, admin, or user")
+    store_ids: List[str] = Field(default=[], description="List of accessible store IDs")
+    store_id: Optional[str] = Field(None, description="Deprecated: use store_ids instead")
+
+class AdminUserCreate(BaseModel):
+    """Model for creating users by admins - excludes role selection for security"""
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=6)
+    store_ids: List[str] = Field(..., description="List of accessible store IDs")
 
 class UserLogin(BaseModel):
     username: str
@@ -168,13 +187,40 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    user: Optional["UserResponse"] = None
 
 class UserResponse(BaseModel):
     id: int
     username: str
-    store_id: str
+    role: str
+    role_display: str
+    store_ids: List[str]
+    store_id: Optional[str] = None  # Backward compatibility
+    created_by_id: Optional[int] = None
+    is_active: bool
     created_at: str
     last_login: Optional[str] = None
+
+class UserListItem(BaseModel):
+    """Simplified user info for lists"""
+    id: int
+    username: str
+    role: str
+    role_display: str
+    store_ids: List[str]
+    is_active: bool
+    created_at: str
+    last_login: Optional[str] = None
+
+class StoreSelection(BaseModel):
+    """Model for super admin store selection"""
+    store_id: str = Field(..., description="Selected store ID for filtering")
+
+class UserManagementResponse(BaseModel):
+    """Response model for user management operations"""
+    success: bool
+    message: str
+    user: Optional[UserResponse] = None
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -196,6 +242,18 @@ print("Initializing database connection...")
 db_manager = get_database_manager()
 if SECRET_KEY.startswith("your-secret-key-change-in-production"):
     print("⚠️ WARNING: Using default SECRET_KEY. Set SECRET_KEY in your .env so JWT tokens remain valid across restarts.")
+
+# Check for super admin on startup
+try:
+    with db_manager.get_session() as session:
+        super_admin_count = session.query(User).filter(User.role == UserRole.SUPER_ADMIN).count()
+        if super_admin_count == 0:
+            print("⚠️ WARNING: No super admin user found!")
+            print("🔧 Run 'python setup_admin.py' to create the first super admin user.")
+            print("   Or use the database migration functions to set up users.")
+except Exception as e:
+    print(f"⚠️ Could not check for super admin: {e}")
+    print("🔧 Run 'python setup_admin.py' to initialize the system.")
 
 # Authentication Helper Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -251,9 +309,88 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     
     with db_manager.get_session() as session:
         user = session.query(User).filter(User.username == username).first()
-        if user is None:
+        if user is None or not user.is_active:
             raise credentials_exception
         return user
+
+# Role-Based Access Control Functions
+def require_role(required_roles: List[UserRole]):
+    """Decorator to require specific user roles"""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            # Extract current_user from kwargs if it exists
+            current_user = kwargs.get('current_user')
+            if not current_user:
+                # Try to get from function signature
+                for arg in args:
+                    if isinstance(arg, User):
+                        current_user = arg
+                        break
+            
+            if not current_user or current_user.role not in required_roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied. Required roles: {[role.value for role in required_roles]}"
+                )
+            
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def get_current_super_admin(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to ensure current user is super admin"""
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required"
+        )
+    return current_user
+
+def get_current_admin_or_higher(current_user: User = Depends(get_current_user)) -> User:
+    """Dependency to ensure current user is admin or super admin"""
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or super admin access required"
+        )
+    return current_user
+
+def get_accessible_store_ids(current_user: User, selected_store_id: Optional[str] = None) -> List[str]:
+    """Get list of store IDs that the current user can access"""
+    if current_user.role == UserRole.SUPER_ADMIN:
+        if selected_store_id:
+            # Super admin has selected a specific store
+            return [selected_store_id]
+        else:
+            # Return empty list to indicate "all stores" access
+            return []
+    else:
+        # Admin and User roles have limited store access
+        if selected_store_id and selected_store_id in current_user.get_store_ids():
+            # User has selected a specific store they have access to
+            return [selected_store_id]
+        else:
+            # Return all accessible stores
+            return current_user.get_store_ids()
+
+def apply_store_filter(query, current_user: User, selected_store_id: Optional[str] = None):
+    """Apply store-based filtering to a query based on user role and permissions"""
+    from database import VehicleProcessingRecord
+    
+    accessible_stores = get_accessible_store_ids(current_user, selected_store_id)
+    
+    if accessible_stores:
+        # User has specific store access - filter by those stores
+        return query.filter(VehicleProcessingRecord.environment_id.in_(accessible_stores))
+    elif current_user.role == UserRole.SUPER_ADMIN and not selected_store_id:
+        # Super admin with no specific store selected - access all stores
+        return query  # No filtering needed
+    else:
+        # Fallback to old behavior for backward compatibility
+        if current_user.store_id:
+            return query.filter(VehicleProcessingRecord.environment_id == current_user.store_id)
+        else:
+            return query
 
 # Helper Functions for Statistics
 def calculate_book_value_difference(before_data: Dict, after_data: Dict) -> float:
@@ -391,44 +528,7 @@ except Exception as e:
     print(f"⚠️ Error accessing database: {e}")
 
 # Authentication Routes
-@app.post("/api/signup", response_model=UserResponse)
-async def signup(user_data: UserCreate):
-    """User registration endpoint"""
-    try:
-        with db_manager.get_session() as session:
-            # Check if username already exists
-            existing_user = session.query(User).filter(User.username == user_data.username).first()
-            if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Username already registered"
-                )
-            
-            # Create new user
-            new_user = User(
-                username=user_data.username,
-                store_id=user_data.store_id
-            )
-            new_user.set_password(user_data.password)
-            
-            session.add(new_user)
-            session.commit()
-            session.refresh(new_user)
-            
-            return UserResponse(
-                id=new_user.id,
-                username=new_user.username,
-                store_id=new_user.store_id,
-                created_at=new_user.created_at.isoformat(),
-                last_login=new_user.last_login.isoformat() if new_user.last_login else None
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating user: {str(e)}"
-        )
+# Note: Public signup removed - users must be created by admins
 
 @app.post("/api/login", response_model=Token)
 async def login(user_data: UserLogin):
@@ -455,7 +555,23 @@ async def login(user_data: UserLogin):
             data={"sub": user.username}, expires_delta=access_token_expires
         )
         
-        return Token(access_token=access_token, token_type="bearer")
+        # Return token with user info
+        return Token(
+            access_token=access_token, 
+            token_type="bearer",
+            user=UserResponse(
+                id=user.id,
+                username=user.username,
+                role=user.role.value,
+                role_display=user.get_role_display(),
+                store_ids=user.get_store_ids(),
+                store_id=user.store_id,
+                created_by_id=user.created_by_id,
+                is_active=user.is_active,
+                created_at=user.created_at.isoformat(),
+                last_login=user.last_login.isoformat() if user.last_login else None
+            )
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -470,13 +586,315 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
+        role=current_user.role.value,
+        role_display=current_user.get_role_display(),
+        store_ids=current_user.get_store_ids(),
         store_id=current_user.store_id,
+        created_by_id=current_user.created_by_id,
+        is_active=current_user.is_active,
         created_at=current_user.created_at.isoformat(),
         last_login=current_user.last_login.isoformat() if current_user.last_login else None
     )
 
+# User Management Routes
+
+@app.post("/api/admin/users", response_model=UserManagementResponse)
+async def create_user_by_admin(
+    user_data: AdminUserCreate,
+    current_user: User = Depends(get_current_admin_or_higher)
+):
+    """Create a new user (admin-only endpoint)"""
+    try:
+        with db_manager.get_session() as session:
+            # Check if username already exists
+            existing_user = session.query(User).filter(User.username == user_data.username).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already registered"
+                )
+            
+            # Determine the role for the new user based on current user's role
+            if current_user.role == UserRole.SUPER_ADMIN:
+                # Super admin can create admins and users, default to user
+                new_role = UserRole.USER
+            elif current_user.role == UserRole.ADMIN:
+                # Admin can only create users
+                new_role = UserRole.USER
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Insufficient permissions to create users"
+                )
+            
+            # For admin users, validate they can only assign stores they have access to
+            if current_user.role == UserRole.ADMIN:
+                admin_stores = current_user.get_store_ids()
+                invalid_stores = [store_id for store_id in user_data.store_ids if store_id not in admin_stores]
+                if invalid_stores:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"You don't have access to these stores: {', '.join(invalid_stores)}. You can only assign stores you have access to: {', '.join(admin_stores)}"
+                    )
+            
+            # Create new user
+            new_user = User(
+                username=user_data.username,
+                role=new_role,
+                created_by_id=current_user.id,
+                is_active=True
+            )
+            new_user.set_password(user_data.password)
+            new_user.set_store_ids(user_data.store_ids)
+            
+            session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+            
+            return UserManagementResponse(
+                success=True,
+                message=f"User {new_user.username} created successfully",
+                user=UserResponse(
+                    id=new_user.id,
+                    username=new_user.username,
+                    role=new_user.role.value,
+                    role_display=new_user.get_role_display(),
+                    store_ids=new_user.get_store_ids(),
+                    store_id=new_user.store_id,
+                    created_by_id=new_user.created_by_id,
+                    is_active=new_user.is_active,
+                    created_at=new_user.created_at.isoformat(),
+                    last_login=None
+                )
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating user: {str(e)}"
+        )
+
+@app.post("/api/superadmin/admins", response_model=UserManagementResponse)
+async def create_admin_by_superadmin(
+    user_data: UserCreate,
+    current_user: User = Depends(get_current_super_admin)
+):
+    """Create a new admin user (super admin only)"""
+    try:
+        with db_manager.get_session() as session:
+            # Check if username already exists
+            existing_user = session.query(User).filter(User.username == user_data.username).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already registered"
+                )
+            
+            # Validate role
+            try:
+                role_enum = UserRole(user_data.role)
+                if role_enum not in [UserRole.ADMIN, UserRole.USER]:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Super admin can only create admin or user accounts"
+                    )
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid role. Valid roles: admin, user"
+                )
+            
+            # Create new user
+            new_user = User(
+                username=user_data.username,
+                role=role_enum,
+                created_by_id=current_user.id,
+                is_active=True
+            )
+            new_user.set_password(user_data.password)
+            
+            # Set store IDs
+            if user_data.store_ids:
+                new_user.set_store_ids(user_data.store_ids)
+            elif user_data.store_id:  # Backward compatibility
+                new_user.set_store_ids([user_data.store_id])
+            
+            session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+            
+            return UserManagementResponse(
+                success=True,
+                message=f"Admin user {new_user.username} created successfully",
+                user=UserResponse(
+                    id=new_user.id,
+                    username=new_user.username,
+                    role=new_user.role.value,
+                    role_display=new_user.get_role_display(),
+                    store_ids=new_user.get_store_ids(),
+                    store_id=new_user.store_id,
+                    created_by_id=new_user.created_by_id,
+                    is_active=new_user.is_active,
+                    created_at=new_user.created_at.isoformat(),
+                    last_login=None
+                )
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating admin user: {str(e)}"
+        )
+
+@app.get("/api/admin/users", response_model=List[UserListItem])
+async def list_managed_users(current_user: User = Depends(get_current_admin_or_higher)):
+    """List users that the current admin can manage"""
+    try:
+        with db_manager.get_session() as session:
+            if current_user.role == UserRole.SUPER_ADMIN:
+                # Super admin can see all users except other super admins
+                users = session.query(User).filter(User.role != UserRole.SUPER_ADMIN).all()
+            else:
+                # Admin can only see users they created
+                users = session.query(User).filter(User.created_by_id == current_user.id).all()
+            
+            return [
+                UserListItem(
+                    id=user.id,
+                    username=user.username,
+                    role=user.role.value,
+                    role_display=user.get_role_display(),
+                    store_ids=user.get_store_ids(),
+                    is_active=user.is_active,
+                    created_at=user.created_at.isoformat(),
+                    last_login=user.last_login.isoformat() if user.last_login else None
+                ) for user in users
+            ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error listing users: {str(e)}"
+        )
+
+@app.delete("/api/admin/users/{user_id}", response_model=UserManagementResponse)
+async def delete_user(
+    user_id: int,
+    current_user: User = Depends(get_current_admin_or_higher)
+):
+    """Delete a user (admin can only delete users they created)"""
+    try:
+        with db_manager.get_session() as session:
+            target_user = session.query(User).filter(User.id == user_id).first()
+            
+            if not target_user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            
+            # Check permissions
+            if not current_user.can_manage_user(target_user):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have permission to delete this user"
+                )
+            
+            username = target_user.username
+            session.delete(target_user)
+            session.commit()
+            
+            return UserManagementResponse(
+                success=True,
+                message=f"User {username} deleted successfully"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error deleting user: {str(e)}"
+        )
+
+@app.put("/api/admin/users/{user_id}/toggle-active", response_model=UserManagementResponse)
+async def toggle_user_active(
+    user_id: int,
+    current_user: User = Depends(get_current_admin_or_higher)
+):
+    """Toggle user active status"""
+    try:
+        with db_manager.get_session() as session:
+            target_user = session.query(User).filter(User.id == user_id).first()
+            
+            if not target_user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            
+            # Check permissions
+            if not current_user.can_manage_user(target_user):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have permission to modify this user"
+                )
+            
+            target_user.is_active = not target_user.is_active
+            session.commit()
+            
+            status_text = "activated" if target_user.is_active else "deactivated"
+            return UserManagementResponse(
+                success=True,
+                message=f"User {target_user.username} {status_text} successfully"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error updating user status: {str(e)}"
+        )
+
+@app.get("/api/stores")
+async def get_available_stores(current_user: User = Depends(get_current_user)):
+    """Get all available store IDs based on user role"""
+    try:
+        with db_manager.get_session() as session:
+            from database import VehicleProcessingRecord
+            from sqlalchemy import distinct
+            
+            if current_user.role == UserRole.SUPER_ADMIN:
+                # Super admin can see all distinct environment_ids
+                store_ids = session.query(distinct(VehicleProcessingRecord.environment_id))\
+                    .filter(VehicleProcessingRecord.environment_id.isnot(None))\
+                    .order_by(VehicleProcessingRecord.environment_id)\
+                    .all()
+                available_stores = [store_id[0] for store_id in store_ids if store_id[0]]
+            elif current_user.role == UserRole.ADMIN:
+                # Admin sees only their assigned stores
+                available_stores = current_user.get_store_ids()
+            else:
+                # Regular user sees only their assigned store
+                available_stores = current_user.get_store_ids()
+            
+            return {
+                "success": True,
+                "stores": available_stores,
+                "role": current_user.role.value,
+                "current_store": current_user.get_store_ids()
+            }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching available stores: {str(e)}"
+        )
+
 @app.get("/api/debug/date-distribution")
-async def get_date_distribution(current_user: User = Depends(get_current_user)):
+async def get_date_distribution(
+    store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
+    current_user: User = Depends(get_current_user)
+):
     """Debug endpoint to check date distribution of vehicles"""
     try:
         with db_manager.get_session() as session:
@@ -484,12 +902,12 @@ async def get_date_distribution(current_user: User = Depends(get_current_user)):
             from sqlalchemy import func
             
             # Get date distribution
-            dates = session.query(
+            query = session.query(
                 func.date(VehicleProcessingRecord.processing_date).label('date'),
                 func.count(VehicleProcessingRecord.id).label('count')
-            ).filter(
-                VehicleProcessingRecord.environment_id == current_user.store_id
-            ).group_by(
+            )
+            query = apply_store_filter(query, current_user, store_id)
+            dates = query.group_by(
                 func.date(VehicleProcessingRecord.processing_date)
             ).order_by(
                 func.date(VehicleProcessingRecord.processing_date).desc()
@@ -505,12 +923,12 @@ async def get_date_distribution(current_user: User = Depends(get_current_user)):
             ]
             
             # Get min and max dates
-            min_max = session.query(
+            min_max_query = session.query(
                 func.min(VehicleProcessingRecord.processing_date),
                 func.max(VehicleProcessingRecord.processing_date)
-            ).filter(
-                VehicleProcessingRecord.environment_id == current_user.store_id
-            ).first()
+            )
+            min_max_query = apply_store_filter(min_max_query, current_user, store_id)
+            min_max = min_max_query.first()
             
             return JSONResponse({
                 "success": True,
@@ -535,10 +953,10 @@ async def login_page(request: Request):
     """Login page"""
     return templates.TemplateResponse("login.html", {"request": request})
 
-@app.get("/signup", response_class=HTMLResponse)
-async def signup_page(request: Request):
-    """Signup page"""
-    return templates.TemplateResponse("signup.html", {"request": request})
+@app.get("/users", response_class=HTMLResponse)
+async def users_page(request: Request):
+    """User management page - requires admin authentication via JavaScript"""
+    return templates.TemplateResponse("users.html", {"request": request})
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
@@ -554,6 +972,7 @@ async def get_vehicles(
     search: str = Query("", description="Search by stock number"),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
     current_user: User = Depends(get_current_user)
 ):
     """Get all vehicles with pagination and search"""
@@ -574,8 +993,8 @@ async def get_vehicles(
             
             query = session.query(VehicleProcessingRecord)
             
-            # Filter by user's store_id (environment_id)
-            query = query.filter(VehicleProcessingRecord.environment_id == current_user.store_id)
+            # Apply role-based store filtering
+            query = apply_store_filter(query, current_user, store_id)
             
             # Apply search filter if provided
             if search:
@@ -732,16 +1151,19 @@ async def get_vehicles(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/vehicle/{vehicle_id}", response_model=VehicleDetailResponse)
-async def get_vehicle_details(vehicle_id: int, current_user: User = Depends(get_current_user)):
+async def get_vehicle_details(
+    vehicle_id: int, 
+    store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
+    current_user: User = Depends(get_current_user)
+):
     """Get detailed information for a specific vehicle"""
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
             
-            vehicle = session.query(VehicleProcessingRecord).filter(
-                VehicleProcessingRecord.id == vehicle_id,
-                VehicleProcessingRecord.environment_id == current_user.store_id
-            ).first()
+            query = session.query(VehicleProcessingRecord).filter(VehicleProcessingRecord.id == vehicle_id)
+            query = apply_store_filter(query, current_user, store_id)
+            vehicle = query.first()
             
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
@@ -899,10 +1321,11 @@ async def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_curre
 async def get_statistics(
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
     current_user: User = Depends(get_current_user)
 ):
     """Get dashboard statistics"""
-    print(f"Statistics API called with start_date={start_date}, end_date={end_date}")
+    print(f"Statistics API called with start_date={start_date}, end_date={end_date}, store_id={store_id}")
     
     # Handle null/empty string dates
     if start_date == "null" or start_date == "":
@@ -914,10 +1337,9 @@ async def get_statistics(
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
             
-            # Base query filtered by user's store_id
-            base_query = session.query(VehicleProcessingRecord).filter(
-                VehicleProcessingRecord.environment_id == current_user.store_id
-            )
+            # Base query with store filtering
+            base_query = session.query(VehicleProcessingRecord)
+            base_query = apply_store_filter(base_query, current_user, store_id)
             
             # Apply date range filter if provided
             if start_date:
@@ -1072,15 +1494,19 @@ async def get_statistics(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/debug/book-values")
-async def debug_book_values(current_user: User = Depends(get_current_user)):
+async def debug_book_values(
+    store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
+    current_user: User = Depends(get_current_user)
+):
     """Debug endpoint to inspect book values data structure"""
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
             
             # Get a few records with book values
-            vehicles_with_book_values = session.query(VehicleProcessingRecord).filter(
-                VehicleProcessingRecord.environment_id == current_user.store_id,
+            query = session.query(VehicleProcessingRecord)
+            query = apply_store_filter(query, current_user, store_id)
+            vehicles_with_book_values = query.filter(
                 VehicleProcessingRecord.book_values_processed == True,
                 VehicleProcessingRecord.book_values_before_processing.isnot(None)
             ).limit(5).all()
@@ -1118,6 +1544,7 @@ async def debug_book_values(current_user: User = Depends(get_current_user)):
 @app.get("/api/recent-activity", response_model=ActivityResponse)
 async def get_recent_activity(
     limit: int = Query(10, ge=1, le=50),
+    store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
     current_user: User = Depends(get_current_user)
 ):
     """Get recent processing activity"""
@@ -1125,9 +1552,10 @@ async def get_recent_activity(
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
             
-            recent_vehicles = session.query(VehicleProcessingRecord).filter(
-                VehicleProcessingRecord.environment_id == current_user.store_id
-            ).order_by(
+            query = session.query(VehicleProcessingRecord)
+            query = apply_store_filter(query, current_user, store_id)
+            
+            recent_vehicles = query.order_by(
                 VehicleProcessingRecord.processing_date.desc()
             ).limit(limit).all()
             

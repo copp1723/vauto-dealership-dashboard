@@ -19,11 +19,12 @@ function authenticatedFetch(url, options = {}) {
     };
     
     return fetch(url, authOptions).then(response => {
-        if (response.status === 401 || response.status === 403) {
-            // Token expired, invalid, or missing
+        if (response.status === 401) {
+            // Token expired or invalid - logout
             localStorage.removeItem('token');
             window.location.href = '/login';
         }
+        // 403 means forbidden but still authenticated - don't logout
         return response;
     });
 }
@@ -169,7 +170,7 @@ class VehicleDashboard {
         }
         
         this.initializeEventListeners();
-        this.loadInitialData();
+        // Don't load initial data here - wait for store selector to be set up
     }
 
     authenticatedFetch(url, options = {}) {
@@ -242,9 +243,15 @@ class VehicleDashboard {
         });
     }
 
+    async initialize() {
+        // This method should be called when the store selector is ready
+        await this.loadInitialData();
+    }
+
     async loadInitialData() {
         try {
             this.showLoadingState();
+            this.showSidebarLoading();
             
             // Load statistics and vehicles separately to handle errors individually
             const statisticsPromise = this.loadStatistics().catch(error => {
@@ -286,20 +293,29 @@ class VehicleDashboard {
     }
 
     async loadStatistics() {
+        // Show loading state for statistics
+        this.showStatsLoading();
+        
         try {
-            let url = '/api/statistics';
+            const params = new URLSearchParams();
             
             // Add date range parameters if available
             if (this.currentDateRange && this.currentDateRange.start && this.currentDateRange.end) {
-                const params = new URLSearchParams({
-                    start_date: this.currentDateRange.start,
-                    end_date: this.currentDateRange.end
-                });
-                url += `?${params.toString()}`;
+                params.append('start_date', this.currentDateRange.start);
+                params.append('end_date', this.currentDateRange.end);
                 console.log('Loading statistics with date filter:', this.currentDateRange.start, 'to', this.currentDateRange.end);
             }
             
+            // Add selected store ID for super admins
+            if (window.selectedStoreId) {
+                params.append('store_id', window.selectedStoreId);
+                console.log('Added store filter to statistics:', window.selectedStoreId);
+            }
+            
+            const queryString = params.toString();
+            const url = queryString ? `/api/statistics?${queryString}` : '/api/statistics';
             console.log('Loading statistics with URL:', url);
+            console.log('Current selectedStoreId:', window.selectedStoreId);
             
             const response = await authenticatedFetch(url);
             const data = await response.json();
@@ -309,13 +325,18 @@ class VehicleDashboard {
                 console.log('Statistics loaded for date range:', this.currentDateRange);
                 console.log('Total vehicles in stats:', data.statistics.total_vehicles);
                 this.updateStatisticsDisplay();
+                this.hideStatsLoading();
                 return true;
             } else {
                 throw new Error(data.error || 'Failed to load statistics');
             }
         } catch (error) {
             console.error('Error loading statistics:', error);
+            this.hideStatsLoading();
             return false;
+        } finally {
+            // Always hide loading after operation
+            this.hideStatsLoading();
         }
     }
 
@@ -373,6 +394,9 @@ class VehicleDashboard {
         if (!this.currentBookValueInsights) {
             return;
         }
+        
+        // Hide loading overlay
+        this.hideSidebarLoading();
         
         const insights = this.currentBookValueInsights;
         const period = this.currentBookValuePeriod;
@@ -532,6 +556,12 @@ class VehicleDashboard {
                 console.log('Added date filters:', this.currentDateRange.start, 'to', this.currentDateRange.end);
             }
             
+            // Add selected store ID for super admins
+            if (window.selectedStoreId) {
+                params.append('store_id', window.selectedStoreId);
+                console.log('Added store filter:', window.selectedStoreId);
+            }
+            
             const url = `/api/vehicles?${params}`;
             console.log('Loading vehicles with URL:', url);
 
@@ -609,6 +639,15 @@ class VehicleDashboard {
         }
 
         vehiclesGrid.innerHTML = html;
+        
+        // Add fade-in animation to vehicle cards
+        requestAnimationFrame(() => {
+            const cards = vehiclesGrid.querySelectorAll('.vehicle-card');
+            cards.forEach((card, index) => {
+                card.classList.add('fade-in');
+                card.style.animationDelay = `${index * 0.03}s`;
+            });
+        });
     }
 
     renderFeaturedVehicle(vehicle) {
@@ -1045,15 +1084,57 @@ class VehicleDashboard {
     }
 
     showLoadingState() {
-        document.getElementById('loading-state').style.display = 'block';
-        document.getElementById('error-state').style.display = 'none';
-        document.getElementById('vehicles-grid').style.display = 'none';
+        const loadingState = document.getElementById('loading-state');
+        const vehiclesGrid = document.getElementById('vehicles-grid');
+        const errorState = document.getElementById('error-state');
+        
+        errorState.style.display = 'none';
+        
+        // If vehicles grid is empty, show skeleton loaders
+        if (!vehiclesGrid.innerHTML.trim() || vehiclesGrid.querySelector('.no-results')) {
+            loadingState.style.display = 'block';
+            vehiclesGrid.style.display = 'none';
+        } else {
+            // If we have existing content, keep it visible and show a subtle loading indicator
+            loadingState.style.display = 'none';
+            vehiclesGrid.style.opacity = '0.7';
+            vehiclesGrid.style.pointerEvents = 'none';
+            
+            // Add a subtle loading indicator
+            if (!document.querySelector('.vehicles-loading-indicator')) {
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.className = 'vehicles-loading-indicator';
+                loadingIndicator.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+                vehiclesGrid.style.position = 'relative';
+                vehiclesGrid.appendChild(loadingIndicator);
+            }
+        }
     }
 
     hideLoadingState() {
-        document.getElementById('loading-state').style.display = 'none';
-        document.getElementById('error-state').style.display = 'none';
-        document.getElementById('vehicles-grid').style.display = 'grid';
+        const loadingState = document.getElementById('loading-state');
+        const vehiclesGrid = document.getElementById('vehicles-grid');
+        const errorState = document.getElementById('error-state');
+        
+        loadingState.style.display = 'none';
+        errorState.style.display = 'none';
+        vehiclesGrid.style.display = 'grid';
+        vehiclesGrid.style.opacity = '1';
+        vehiclesGrid.style.pointerEvents = 'auto';
+        vehiclesGrid.style.position = '';
+        
+        // Remove loading indicator if exists
+        const loadingIndicator = document.querySelector('.vehicles-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.remove();
+        }
+        
+        // Add fade-in animation to new content
+        const vehicleCards = vehiclesGrid.querySelectorAll('.vehicle-card');
+        vehicleCards.forEach((card, index) => {
+            card.classList.add('fade-in');
+            card.style.animationDelay = `${index * 0.05}s`;
+        });
     }
 
     hideErrorState() {
@@ -1065,6 +1146,46 @@ class VehicleDashboard {
         document.getElementById('error-state').style.display = 'block';
         document.getElementById('error-message').textContent = message;
         document.getElementById('vehicles-grid').style.display = 'none';
+    }
+    
+    showStatsLoading() {
+        const statsLoading = document.getElementById('stats-loading');
+        const sidebarLoading = document.getElementById('sidebar-loading');
+        
+        if (statsLoading) {
+            statsLoading.classList.add('active');
+        }
+        
+        if (sidebarLoading) {
+            sidebarLoading.classList.add('active');
+        }
+    }
+    
+    hideStatsLoading() {
+        const statsLoading = document.getElementById('stats-loading');
+        const sidebarLoading = document.getElementById('sidebar-loading');
+        
+        if (statsLoading) {
+            statsLoading.classList.remove('active');
+        }
+        
+        if (sidebarLoading) {
+            sidebarLoading.classList.remove('active');
+        }
+    }
+    
+    showSidebarLoading() {
+        const sidebarLoading = document.getElementById('sidebar-loading');
+        if (sidebarLoading) {
+            sidebarLoading.classList.add('active');
+        }
+    }
+    
+    hideSidebarLoading() {
+        const sidebarLoading = document.getElementById('sidebar-loading');
+        if (sidebarLoading) {
+            sidebarLoading.classList.remove('active');
+        }
     }
 
     showToast(message, type = 'info') {
