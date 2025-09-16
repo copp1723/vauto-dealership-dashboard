@@ -365,9 +365,9 @@ def calculate_time_saved(vehicle_count: int) -> tuple[int, str]:
     minutes = total_minutes % 60
     
     if hours > 0:
-        formatted = f"{hours} HOUR{'S' if hours != 1 else ''} {minutes} MINUTE{'S' if minutes != 1 else ''}"
+        formatted = f"{hours} hour{'s' if hours != 1 else ''} {minutes} minute{'s' if minutes != 1 else ''}"
     else:
-        formatted = f"{minutes} MINUTE{'S' if minutes != 1 else ''}"
+        formatted = f"{minutes} minute{'s' if minutes != 1 else ''}"
     
     return total_minutes, formatted
 
@@ -626,38 +626,38 @@ async def get_vehicles(
                     processing_status = 'completed' if vehicle.processing_successful else 'failed'
                 # Check for no build data first - this takes priority
                 if getattr(vehicle, 'no_build_data_found', False):
-                    status = "📋 No Build Data Found"
+                    status = '<i class="fas fa-clipboard-list"></i> No Build Data Found'
                     status_class = "warning"
                 elif processing_status == 'processing':
-                    status = "🔄 Processing..."
+                    status = '<i class="fas fa-spinner fa-spin"></i> Processing...'
                     status_class = "warning"
                 elif processing_status == 'pending':
-                    status = "⏳ Pending"
+                    status = '<i class="fas fa-clock"></i> Pending'
                     status_class = "muted"
                 elif vehicle.processing_successful:
-                    status = "✅ Completed Successfully"
+                    status = '<i class="fas fa-check-circle"></i> Completed Successfully'
                     status_class = "success"
                 else:
-                    status = "❌ Processing Failed"
+                    status = '<i class="fas fa-times-circle"></i> Processing Failed'
                     status_class = "danger"
                 
                 # Format features count
                 features_text = f"{vehicle.marked_features_count or 0} features marked"
                 
                 # Format description status
-                desc_status = "📝 Description Updated" if vehicle.description_updated else "📄 No Description"
+                desc_status = '<i class="fas fa-edit"></i> Description Updated' if vehicle.description_updated else '<i class="fas fa-file-alt"></i> No Description'
                 desc_class = "success" if vehicle.description_updated else "muted"
                 
                 # Format special features
                 special_features = []
                 if vehicle.no_fear_certificate:
-                    special_features.append("🏆 NO FEAR Certified")
+                    special_features.append('<i class="fas fa-award"></i> NO FEAR Certified')
                 
                 # Book Values processing status
-                book_values_status = "📊 Book Values Processed" if vehicle.book_values_processed else "📊 Book Values Pending"
+                book_values_status = '<i class="fas fa-chart-bar"></i> Book Values Processed' if vehicle.book_values_processed else '<i class="fas fa-chart-bar"></i> Book Values Pending'
                 
                 # Media Tab processing status
-                media_status = "📸 Media Processed" if vehicle.media_tab_processed else "📸 Media Pending"
+                media_status = '<i class="fas fa-images"></i> Media Processed' if vehicle.media_tab_processed else '<i class="fas fa-images"></i> Media Pending'
                 
                 # Overall processing completeness
                 processing_steps = [
@@ -670,13 +670,13 @@ async def get_vehicles(
                 total_steps = len(processing_steps)
                 
                 if completed_steps == total_steps:
-                    processing_completeness = f"✅ Complete ({completed_steps}/{total_steps})"
+                    processing_completeness = f'<i class="fas fa-check-circle"></i> Complete ({completed_steps}/{total_steps})'
                     processing_completeness_class = "success"
                 elif completed_steps > total_steps // 2:
-                    processing_completeness = f"🔄 Mostly Complete ({completed_steps}/{total_steps})"
+                    processing_completeness = f'<i class="fas fa-spinner"></i> Mostly Complete ({completed_steps}/{total_steps})'
                     processing_completeness_class = "warning"
                 else:
-                    processing_completeness = f"🟡 Partial ({completed_steps}/{total_steps})"
+                    processing_completeness = f'<i class="fas fa-exclamation-circle"></i> Partial ({completed_steps}/{total_steps})'
                     processing_completeness_class = "danger"
                 
                 vehicle_info = VehicleInfo(

@@ -437,7 +437,6 @@ class VehicleDashboard {
                         <div class="card-source">${category}</div>
                         <div class="card-amount ${amountClass}">${changeFormatted}</div>
                     </div>
-                    <div class="card-meta">Recent Activity</div>
                 `;
                 
                 cardsContainer.appendChild(card);
@@ -617,14 +616,7 @@ class VehicleDashboard {
     }
 
     renderVehicleCard(vehicle) {
-        const statusClass = vehicle.processing_status === 'processing' ? 'processing' :
-                           vehicle.processing_successful ? 'success' : 'failed';
-
-        const statusIcon = vehicle.processing_status === 'processing' ? 'fa-spinner fa-spin' :
-                          vehicle.processing_successful ? 'fa-check-circle' : 'fa-exclamation-circle';
-
-        const statusText = vehicle.processing_status === 'processing' ? 'Processing' :
-                          vehicle.processing_successful ? 'Complete' : 'Needs review';
+        const statusClass = vehicle.status_class || 'muted';
 
         return `
             <div class="vehicle-card ${statusClass}" onclick="dashboard.showVehicleDetails(${vehicle.id})">
@@ -634,7 +626,7 @@ class VehicleDashboard {
                         <div class="vehicle-stock">Stock #${this.escapeHtml(vehicle.stock_number)}</div>
                     </div>
                     <div class="vehicle-status ${statusClass}">
-                        <i class="fas ${statusIcon}"></i> ${statusText}
+                        ${vehicle.status}
                     </div>
                 </div>
 
@@ -875,11 +867,8 @@ class VehicleDashboard {
                     </div>
                     <div class="modal-field">
                         <label>Processing Status</label>
-                        <value class="status ${vehicle.processing_status === 'processing' ? 'muted' : vehicle.processing_successful ? 'success' : 'danger'}">
-                            ${vehicle.processing_status === 'processing' ? 'Processing...' :
-                              vehicle.processing_status === 'pending' ? 'Pending' :
-                              vehicle.processing_successful ? 'Successful' : 'Failed'}
-                            ${vehicle.processing_status === 'processing' ? '<i class="fas fa-spinner fa-spin" style="margin-left: 8px;"></i>' : ''}
+                        <value class="status ${vehicle.status_class || 'muted'}">
+                            ${vehicle.status}
                         </value>
                     </div>
                     <div class="modal-field">
@@ -936,9 +925,9 @@ class VehicleDashboard {
             <div class="modal-section">
                 <h4><i class="fas fa-edit"></i> Description Information</h4>
                 <div class="modal-field">
-                    <label>Description Updated</label>
-                    <value class="status ${vehicle.description_updated ? 'success' : 'muted'}">
-                        ${vehicle.description_updated ? 'Yes' : 'No'}
+                    <label>Description Status</label>
+                    <value class="status ${vehicle.description_class || 'muted'}">
+                        ${vehicle.description_status}
                     </value>
                 </div>
                 ${vehicle.final_description ? `
@@ -1594,7 +1583,7 @@ function deleteVehicle() {
     
     // Create a more detailed confirmation message
     const statusText = vehicle.processing_successful ? 'Successfully Processed' : 'Failed Processing';
-    const confirmMessage = `Are you sure you want to delete ${vehicleName}?\n\nStatus: ${statusText}\nProcessing Date: ${vehicle.processing_date || 'N/A'}\n\n⚠️ This action cannot be undone!`;
+    const confirmMessage = `Are you sure you want to delete ${vehicleName}?\n\nStatus: ${statusText}\nProcessing Date: ${vehicle.processing_date || 'N/A'}\n\nWARNING: This action cannot be undone!`;
     
     if (confirm(confirmMessage)) {
         dashboard.deleteCurrentVehicle();
