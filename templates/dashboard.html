@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc; /* Light Gray Background */
+        }
+        :root {
+            --light-blue: #ACC2D8;
+            --medium-blue: #7C9FC2;
+            --dark-blue: #5788B3;
+            --header-blue: #5788B3; /* Matching reference */
+            --text-dark: #1e293b;
+            --text-light: #475569;
+            --border-color: #e2e8f0;
+        }
+        .text-dark-blue { color: var(--dark-blue); }
+        .bg-header-blue { background-color: var(--header-blue); }
+        .border-light-blue { border-color: var(--light-blue); }
+
+        /* Custom Dropdown Styling */
+        .custom-select {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1em;
+            padding-right: 2.5rem;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.hidden {
+            pointer-events: none;
+            opacity: 0;
+        }
+        .modal-container {
+            background-color: white;
+            border-radius: 0.75rem;
+            max-width: 56rem; /* 896px */
+            width: 100%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay:not(.hidden) .modal-container {
+            transform: scale(1);
+        }
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        .clickable-row {
+            cursor: pointer;
+        }
+        .clickable-row:hover {
+            background-color: #f8fafc;
+        }
+
+    </style>
+</head>
+<body class="text-slate-800">
+    <div class="flex h-screen flex-col">
+        <!-- Header -->
+        <header class="bg-header-blue px-8 py-4 flex justify-between items-center text-white">
+            <h1 class="text-xl font-semibold">Vehicle Processing Dashboard</h1>
+            <div class="relative">
+                <button id="user-menu-button" class="flex items-center space-x-2 p-2 rounded-md hover:bg-white/10 transition-colors">
+                    <div class="flex-shrink-0 h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
+                         <svg class="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                           <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-5.5-2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 12a5.99 5.99 0 00-4.793 2.39A6.483 6.483 0 0010 16.5a6.483 6.483 0 004.793-2.11A5.99 5.99 0 0010 12z" clip-rule="evenodd" />
+                         </svg>
+                    </div>
+                    <span class="text-sm font-medium">jcopp</span>
+                     <svg class="h-5 w-5 text-white/60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                     </svg>
+                </button>
+                <div id="user-menu" class="absolute right-0 mt-2 w-72 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none hidden text-text-dark">
+                    <div class="p-4">
+                        <div class="flex items-center space-x-3">
+                             <div class="flex-shrink-0 h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center">
+                                 <svg class="h-6 w-6 text-slate-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                   <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-5.5-2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 12a5.99 5.99 0 00-4.793 2.39A6.483 6.483 0 0010 16.5a6.483 6.483 0 004.793-2.11A5.99 5.99 0 0010 12z" clip-rule="evenodd" />
+                                 </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold">jcopp</p>
+                                <div class="mt-1">
+                                    <span class="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                                        <svg class="w-4 h-4 mr-1 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"></path></svg>
+                                        Role: Super Administrator
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <label for="store-select-dropdown" class="flex items-center text-sm font-medium text-slate-600 mb-1">
+                                 <svg class="w-4 h-4 mr-1.5 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-5-10 5z"></path></svg>
+                                Store
+                            </label>
+                            <select id="store-select-dropdown" class="w-full custom-select bg-white border border-slate-300 rounded-md shadow-sm py-2 px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-dark-blue">
+                                 <option>All Stores</option>
+                                 <option>kunesbuickgmcgreenfield</option>
+                                 <option>kunesbuickgmcoakcreek</option>
+                                 <option>kunescdjrelkhorn</option>
+                                 <option>kuneschevroletdevan</option>
+                                 <option>kuneschevroletgmclakegeneva</option>
+                                 <option>kunesfordantioch</option>
+                                 <option>kunesforddevan</option>
+                                 <option>kuneshopechevy</option>
+                            </select>
+                        </div>
+                         <button id="manage-users-btn" class="mt-4 w-full text-center inline-flex items-center justify-center gap-x-1.5 rounded-md bg-slate-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600">
+                           <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.095a1.23 1.23 0 00.41-1.412A9.99 9.99 0 0010 12a9.99 9.99 0 00-6.535 2.493z"></path></svg>
+                           Manage Users
+                         </button>
+                    </div>
+                    <div class="border-t border-slate-200">
+                        <a href="#" class="block w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 hover:text-slate-900">Logout</a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Left Sidebar -->
+            <aside class="w-1/4 max-w-xs bg-white border-r border-slate-200 p-6 flex-col hidden md:flex">
+                <h2 class="text-lg font-semibold text-dark-blue mb-4">Recent Changes</h2>
+                <div id="book-value-sidebar-content" class="border border-slate-200 rounded-lg overflow-hidden">
+                    <!-- Book value changes will be populated by JavaScript -->
+                    <div class="p-4 text-center text-sm text-gray-500">
+                        Loading recent changes...
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="flex-1 overflow-y-auto p-8">
+                <!-- Filters and KPIs -->
+                <div class="mb-8">
+                     <div class="flex justify-start mb-4">
+                         <label for="date-range" class="text-sm font-medium text-slate-700 mr-2 self-center">Date Range:</label>
+                         <select id="date-range" class="w-48 custom-select bg-white border border-slate-300 rounded-md shadow-sm py-2 px-4 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-dark-blue">
+                             <option>Month to Date</option>
+                             <option>Year to Date</option>
+                             <option>Last 30 Days</option>
+                             <option value="custom">Custom Range</option>
+                         </select>
+                     </div>
+
+                    <!-- Tighter KPI Snapshot -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
+                            <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Total Vehicles</h3>
+                            <p class="text-xl font-bold text-text-dark">1,391</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
+                             <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Descriptions Updated</h3>
+                             <p class="text-xl font-bold text-text-dark">1,185</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
+                             <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Features Marked</h3>
+                             <p class="text-xl font-bold text-text-dark">10,535</p>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
+                             <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Time Saved</h3>
+                             <p class="text-xl font-bold text-text-dark">253h 55m</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recently Processed Vehicles Section -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-dark-blue mb-3">Recently Processed Vehicles</h3>
+                    <div id="recently-processed-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                        <!-- Recently processed vehicles will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Table Section -->
+                <div class="bg-white p-6 rounded-lg border border-slate-200">
+                    <div class="flex items-center mb-4">
+                        <div class="relative w-full max-w-sm">
+                            <input placeholder="Search by stock number..." id="search" class="w-full py-2.5 pl-9 pr-3 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-dark-blue">
+                            <svg class="w-[18px] h-[18px] text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        </div>
+                    </div>
+
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Vehicle</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock #</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Processed At</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vehicles-table-body" class="bg-white divide-y divide-slate-200">
+                            <!-- Vehicle data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Vehicle Detail Modal -->
+    <div id="vehicleModal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <header class="modal-header">
+                <h2 id="modal-title" class="text-lg font-semibold text-text-dark">Vehicle Details</h2>
+                <button data-modal-close class="text-slate-500 hover:text-slate-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </header>
+            <div id="modal-body" class="modal-body">
+                <!-- Vehicle details will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Full Dashboard Modal (used by dashboard.js) -->
+    <div id="vehicle-modal" class="fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-black opacity-50"></div>
+            <div class="relative bg-white rounded-lg max-w-4xl w-full max-h-screen overflow-y-auto">
+                <div class="flex items-center justify-between p-4 border-b">
+                    <h3 id="modal-vehicle-title" class="text-lg font-semibold">Vehicle Details</h3>
+                    <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="modal-vehicle-body" class="p-6">
+                    <!-- Content populated by dashboard.js -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Date Range Modal -->
+    <div id="dateRangeModal" class="modal-overlay hidden">
+        <div class="modal-container !max-w-xl">
+            <header class="modal-header">
+                <h2 class="text-lg font-semibold text-text-dark">Select Custom Date Range</h2>
+                <button data-date-modal-close class="text-slate-500 hover:text-slate-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </header>
+            <div class="modal-body">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label for="start-date" class="block text-sm font-medium text-gray-700">Start Date</label>
+                        <input type="date" id="start-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                    </div>
+                    <div>
+                        <label for="end-date" class="block text-sm font-medium text-gray-700">End Date</label>
+                        <input type="date" id="end-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <h3 class="text-sm font-medium text-gray-700">Quick Select</h3>
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        <button class="quick-select-btn bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-1.5 px-3 rounded-full" data-days="7">Last 7 Days</button>
+                        <button class="quick-select-btn bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-1.5 px-3 rounded-full" data-days="30">Last 30 Days</button>
+                        <button class="quick-select-btn bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-1.5 px-3 rounded-full" data-days="90">Last 90 Days</button>
+                        <button id="this-year-btn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium py-1.5 px-3 rounded-full">This Year</button>
+                    </div>
+                </div>
+                <div class="mt-8 flex justify-end space-x-3">
+                    <button data-date-modal-close class="bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm">Cancel</button>
+                    <button id="apply-date-range" class="bg-dark-blue hover:bg-opacity-90 text-white font-semibold py-2 px-4 rounded-lg shadow-sm" style="background-color: var(--dark-blue);">Apply Range</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the full dashboard.js for complete functionality -->
+    <script src="/static/js/dashboard.js"></script>
+    <script>
+        // Helper function for authenticated fetch specific to Tailwind UI
+        function authenticatedFetch(url, options = {}) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            const authOptions = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            return fetch(url, authOptions).then(response => {
+                if (response.status === 401) {
+                    localStorage.removeItem('token');
+                    window.location.href = '/login';
+                }
+                return response;
+            });
+        }
+
+        // Simple Tailwind-specific dashboard initialization
+        class TailwindDashboard {
+            constructor() {
+                this.initializeEventListeners();
+                this.initializeData();
+            }
+
+            initializeEventListeners() {
+                // Search functionality
+                const searchInput = document.getElementById('search');
+                if (searchInput) {
+                    let searchTimeout;
+                    searchInput.addEventListener('input', (e) => {
+                        clearTimeout(searchTimeout);
+                        searchTimeout = setTimeout(() => {
+                            this.searchVehicles(e.target.value);
+                        }, 300);
+                    });
+                }
+            }
+
+            async searchVehicles(query) {
+                try {
+                    let url = '/api/vehicles?page=1&per_page=20';
+                    if (query && query.trim()) {
+                        url += `&search=${encodeURIComponent(query.trim())}`;
+                    }
+
+                    const response = await authenticatedFetch(url);
+                    const data = await response.json();
+                    if (data.success) {
+                        this.updateVehiclesTable(data.vehicles);
+                    }
+                } catch (error) {
+                    console.error('Error searching vehicles:', error);
+                }
+            }
+
+            async initializeData() {
+                try {
+                    // Load real statistics
+                    const statsResponse = await authenticatedFetch('/api/statistics');
+                    const statsData = await statsResponse.json();
+                    if (statsData.success) {
+                        this.updateStatistics(statsData.statistics);
+                        this.updateSidebar(statsData.statistics);
+                    }
+
+                    // Load recent vehicles for the cards
+                    const vehiclesResponse = await authenticatedFetch('/api/vehicles?page=1&per_page=6');
+                    const vehiclesData = await vehiclesResponse.json();
+                    if (vehiclesData.success) {
+                        this.updateRecentVehicles(vehiclesData.vehicles);
+                    }
+
+                    // Load all vehicles for the table
+                    const allVehiclesResponse = await authenticatedFetch('/api/vehicles?page=1&per_page=20');
+                    const allVehiclesData = await allVehiclesResponse.json();
+                    if (allVehiclesData.success) {
+                        this.updateVehiclesTable(allVehiclesData.vehicles);
+                    }
+                } catch (error) {
+                    console.error('Error loading dashboard data:', error);
+                }
+            }
+
+            updateStatistics(stats) {
+                // Update KPI cards with real data - use more specific selectors
+                const kpiGrid = document.querySelector('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4');
+                if (!kpiGrid) return;
+
+                const cards = kpiGrid.querySelectorAll('.bg-white');
+
+                // Total Vehicles (first card)
+                if (cards[0]) {
+                    const element = cards[0].querySelector('p.text-xl');
+                    if (element) element.textContent = (stats.total_vehicles || 0).toLocaleString();
+                }
+
+                // Descriptions Updated (second card)
+                if (cards[1]) {
+                    const element = cards[1].querySelector('p.text-xl');
+                    if (element) element.textContent = (stats.descriptions_updated || 0).toLocaleString();
+                }
+
+                // Features Marked (third card)
+                if (cards[2]) {
+                    const element = cards[2].querySelector('p.text-xl');
+                    if (element) element.textContent = (stats.total_features_marked || 0).toLocaleString();
+                }
+
+                // Time Saved (fourth card)
+                if (cards[3]) {
+                    const element = cards[3].querySelector('p.text-xl');
+                    if (element && stats.time_saved_formatted) {
+                        element.textContent = stats.time_saved_formatted;
+                    }
+                }
+            }
+
+            updateRecentVehicles(vehicles) {
+                const grid = document.getElementById('recently-processed-grid');
+                if (!grid) return;
+
+                grid.innerHTML = vehicles.slice(0, 6).map(vehicle => `
+                    <div class="bg-white border border-slate-200 rounded-lg p-4 cursor-pointer hover:bg-slate-50 transition-colors" onclick="showVehicleDetails(${vehicle.id})">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-medium text-text-dark text-sm">${vehicle.vehicle_name || vehicle.name || `Stock #${vehicle.stock_number}`}</h4>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${this.getStatusClass(vehicle)}">
+                                ${this.formatStatus(vehicle)}
+                            </span>
+                        </div>
+                        <p class="text-xs text-text-light mb-1">Stock: ${vehicle.stock_number}</p>
+                        <p class="text-xs text-text-light">${this.formatDate(vehicle.processing_date)}</p>
+                    </div>
+                `).join('');
+            }
+
+            updateVehiclesTable(vehicles) {
+                const tbody = document.getElementById('vehicles-table-body');
+                if (!tbody) return;
+
+                tbody.innerHTML = vehicles.map(vehicle => `
+                    <tr class="clickable-row cursor-pointer hover:bg-slate-50" onclick="showVehicleDetails(${vehicle.id})">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-dark">${vehicle.vehicle_name || vehicle.name || 'Unknown Vehicle'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">${vehicle.stock_number}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">${this.formatDate(vehicle.processing_date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${this.getStatusClass(vehicle)}">
+                                ${this.formatStatus(vehicle)}
+                            </span>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            getStatusClass(vehicle) {
+                if (vehicle.processing_successful) return 'bg-green-100 text-green-800';
+                if (vehicle.processing_status === 'processing') return 'bg-yellow-100 text-yellow-800';
+                if (vehicle.processing_status === 'failed' || !vehicle.processing_successful) return 'bg-red-100 text-red-800';
+                return 'bg-gray-100 text-gray-800';
+            }
+
+            formatStatus(vehicle) {
+                if (vehicle.processing_successful) return 'Completed';
+                if (vehicle.processing_status === 'processing') return 'In Progress';
+                if (vehicle.processing_status === 'failed' || !vehicle.processing_successful) return 'Failed';
+                return 'Pending';
+            }
+
+            formatDate(dateString) {
+                if (!dateString) return 'Unknown';
+                const date = new Date(dateString);
+                return date.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
+            }
+
+            updateSidebar(stats) {
+                const sidebarContent = document.getElementById('book-value-sidebar-content');
+                if (!sidebarContent) return;
+
+                // Use book value insights from statistics if available
+                const insights = stats.book_value_insights_mtd || {};
+                const categories = insights.categories || {};
+                const categoryKeys = Object.keys(categories);
+
+                if (categoryKeys.length === 0) {
+                    sidebarContent.innerHTML = `
+                        <div class="p-4 text-center text-sm text-gray-500">
+                            No recent book value changes
+                        </div>
+                    `;
+                    return;
+                }
+
+                const rows = categoryKeys.map((category, index) => {
+                    const data = categories[category];
+                    const difference = data.difference || 0;
+                    const isEven = index % 2 === 0;
+                    const colorClass = difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-gray-700';
+                    const formattedDiff = this.formatCurrency(difference, true);
+
+                    return `
+                        <div class="flex justify-between items-center py-2.5 px-3 text-sm ${isEven ? 'bg-slate-50' : ''}">
+                            <span class="font-semibold text-text-light">${category}</span>
+                            <span class="font-medium ${colorClass}">${formattedDiff}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                sidebarContent.innerHTML = rows;
+            }
+
+            formatCurrency(amount, showSign = false) {
+                if (amount === 0) return '$0';
+                const formatted = new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: 'USD',
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                }).format(Math.abs(amount));
+
+                if (!showSign) return formatted;
+                return amount > 0 ? `+${formatted}` : `-${formatted}`;
+            }
+        }
+
+        // Global function to show vehicle details using full dashboard functionality
+        async function showVehicleDetails(vehicleId) {
+            try {
+                const response = await authenticatedFetch(`/api/vehicle/${vehicleId}`);
+                const data = await response.json();
+
+                if (data.success && window.dashboard) {
+                    // Use the full dashboard's modal functionality
+                    window.dashboard.displayVehicleModal(data.vehicle);
+                } else {
+                    // Fallback simple modal
+                    showSimpleModal(data.vehicle || { id: vehicleId, error: 'Failed to load details' });
+                }
+            } catch (error) {
+                console.error('Error loading vehicle details:', error);
+                alert('Failed to load vehicle details');
+            }
+        }
+
+        function showSimpleModal(vehicle) {
+            const modal = document.getElementById('vehicleModal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+
+            modalTitle.textContent = vehicle.vehicle_name || vehicle.name || `Vehicle #${vehicle.stock_number || 'Unknown'}`;
+            modalBody.innerHTML = `
+                <div class="space-y-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-dark-blue mb-2">Basic Information</h3>
+                        <dl class="text-sm space-y-1">
+                            <div class="flex justify-between">
+                                <dt class="font-medium text-text-light">Stock Number:</dt>
+                                <dd class="text-text-dark">${vehicle.stock_number || 'N/A'}</dd>
+                            </div>
+                            ${vehicle.vin ? `
+                                <div class="flex justify-between">
+                                    <dt class="font-medium text-text-light">VIN:</dt>
+                                    <dd class="text-text-dark">${vehicle.vin}</dd>
+                                </div>
+                            ` : ''}
+                            ${vehicle.processing_date ? `
+                                <div class="flex justify-between">
+                                    <dt class="font-medium text-text-light">Processing Date:</dt>
+                                    <dd class="text-text-dark">${new Date(vehicle.processing_date).toLocaleDateString()}</dd>
+                                </div>
+                            ` : ''}
+                        </dl>
+                    </div>
+                    ${vehicle.error ? `<div class="text-red-600 text-sm">${vehicle.error}</div>` : ''}
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        // Initialize the Tailwind dashboard
+        const tailwindDash = new TailwindDashboard();
+
+        // Modal controls
+        const vehicleModal = document.getElementById('vehicleModal');
+        const closeModalButtons = document.querySelectorAll('[data-modal-close]');
+
+        const closeModal = () => vehicleModal.classList.add('hidden');
+
+        closeModalButtons.forEach(button => {
+            button.addEventListener('click', closeModal);
+        });
+
+        vehicleModal.addEventListener('click', (event) => {
+            if (event.target === vehicleModal) {
+                closeModal();
+            }
+        });
+
+        // Date Range Modal Logic
+        const dateRangeModal = document.getElementById('dateRangeModal');
+        const dateRangeSelect = document.getElementById('date-range');
+        const closeDateModalButtons = document.querySelectorAll('[data-date-modal-close]');
+        const quickSelectButtons = document.querySelectorAll('.quick-select-btn');
+        const thisYearButton = document.getElementById('this-year-btn');
+        const applyDateRangeButton = document.getElementById('apply-date-range');
+        const startDateInput = document.getElementById('start-date');
+        const endDateInput = document.getElementById('end-date');
+
+        // User Menu Dropdown Logic
+        const userMenuButton = document.getElementById('user-menu-button');
+        const userMenu = document.getElementById('user-menu');
+        const manageUsersBtn = document.getElementById('manage-users-btn');
+
+        userMenuButton.addEventListener('click', () => {
+            userMenu.classList.toggle('hidden');
+        });
+
+        // Manage Users button
+        manageUsersBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = '/users';
+        });
+
+        // Close dropdown if clicked outside
+        document.addEventListener('click', (event) => {
+            if (!userMenuButton.contains(event.target) && !userMenu.contains(event.target)) {
+                userMenu.classList.add('hidden');
+            }
+        });
+
+        const openDateModal = () => dateRangeModal.classList.remove('hidden');
+        const closeDateModal = () => {
+            dateRangeModal.classList.add('hidden');
+            // If user cancels, reset dropdown to what it was before "Custom Range"
+            if (dateRangeSelect.value === 'custom') {
+                 // Find a non-custom option to revert to
+                 const firstOption = dateRangeSelect.querySelector('option:not([value="custom"])');
+                 if(firstOption) dateRangeSelect.value = firstOption.value;
+            }
+        };
+
+        dateRangeSelect.addEventListener('change', () => {
+            if (dateRangeSelect.value === 'custom') {
+                // Set default dates
+                const today = new Date();
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                endDateInput.valueAsDate = yesterday;
+                const thirtyDaysAgo = new Date(today);
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                startDateInput.valueAsDate = thirtyDaysAgo;
+                openDateModal();
+            } else {
+                // Handle non-custom selections (e.g., trigger data refresh)
+                console.log(`Date range changed to: ${dateRangeSelect.value}`);
+            }
+        });
+
+        closeDateModalButtons.forEach(button => {
+            button.addEventListener('click', closeDateModal);
+        });
+
+        dateRangeModal.addEventListener('click', (event) => {
+            if (event.target === dateRangeModal) {
+                closeDateModal();
+            }
+        });
+
+        quickSelectButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const days = parseInt(button.dataset.days, 10);
+                const today = new Date();
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(today.getDate() - days);
+
+                startDateInput.valueAsDate = startDate;
+                endDateInput.valueAsDate = endDate;
+            });
+        });
+
+        thisYearButton.addEventListener('click', () => {
+            const today = new Date();
+            const year = today.getFullYear();
+            const startDate = new Date(year, 0, 1);
+
+            startDateInput.valueAsDate = startDate;
+            endDateInput.valueAsDate = today;
+        });
+
+        applyDateRangeButton.addEventListener('click', () => {
+            console.log(`Applying custom date range: ${startDateInput.value} to ${endDateInput.value}`);
+            // Logic to refresh dashboard data with these dates would go here
+            closeDateModal();
+        });
+
+    </script>
+</body>
+</html>

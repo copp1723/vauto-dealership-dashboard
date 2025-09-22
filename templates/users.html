@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - Dealership Dashboard</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        .page-content {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        
+        .page-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .user-management-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .user-management-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .create-user-card,
+        .user-list-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        /* Store Dropdown Styles */
+        .store-dropdown-container {
+            position: relative;
+            width: 100%;
+        }
+        
+        .store-dropdown-toggle {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            color: #1f2937;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .store-dropdown-toggle:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .store-dropdown-toggle:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+        
+        .store-dropdown-toggle i {
+            transition: transform 0.2s ease;
+            color: #6b7280;
+        }
+        
+        .store-dropdown-toggle.active i {
+            transform: rotate(180deg);
+        }
+        
+        #selected-stores-text {
+            color: #6b7280;
+        }
+        
+        .store-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08), 0 4px 10px rgba(0, 0, 0, 0.04);
+            z-index: 1000;
+            max-height: 320px;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+            pointer-events: none;
+        }
+        
+        .store-dropdown-menu.show {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        
+        .store-dropdown-search {
+            padding: 12px;
+            border-bottom: 1px solid #f3f4f6;
+            background-color: #f9fafb;
+        }
+        
+        .store-dropdown-search input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            background-color: white;
+        }
+        
+        .store-dropdown-search input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .store-dropdown-search input::placeholder {
+            color: #9ca3af;
+        }
+        
+        .store-dropdown-options {
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .store-dropdown-options::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .store-dropdown-options::-webkit-scrollbar-track {
+            background: #f3f4f6;
+            border-radius: 4px;
+        }
+        
+        .store-dropdown-options::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 4px;
+        }
+        
+        .store-dropdown-options::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+        
+        .store-option {
+            padding: 10px 12px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border-radius: 6px;
+        }
+        
+        .store-option:hover {
+            background-color: #f3f4f6;
+            transform: translateX(2px);
+        }
+        
+        .store-option:last-child {
+            margin-bottom: 0;
+        }
+        
+        .store-option input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 12px;
+            cursor: pointer;
+            border: 2px solid #e5e7eb;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+        }
+        
+        .store-option input[type="checkbox"]:checked {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+        }
+        
+        .store-option label {
+            cursor: pointer;
+            margin: 0;
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+            user-select: none;
+        }
+        
+        .store-option input[type="checkbox"]:checked + label {
+            color: #1f2937;
+        }
+        
+        /* Empty state */
+        .store-dropdown-options .empty-state {
+            padding: 20px;
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: white;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(100%);
+            transition: all 0.3s ease;
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .toast i {
+            font-size: 18px;
+        }
+        
+        .toast-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .toast-error {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .toast-info {
+            background: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-users"></i>
+                    <h1>User Management</h1>
+                </div>
+                <div class="header-actions">
+                    <div class="user-info">
+                        <span class="user-name">
+                            <i class="fas fa-user"></i> 
+                            <span id="username">Loading...</span>
+                        </span>
+                        <span class="user-role">
+                            <i class="fas fa-shield-alt"></i>
+                            Role: <span id="user-role">Loading...</span>
+                        </span>
+                    </div>
+                    <a href="/" class="btn btn-secondary">
+                        <i class="fas fa-tachometer-alt"></i> Back to Dashboard
+                    </a>
+                    <button class="btn btn-outline" onclick="logout()">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="page-content">
+        <div class="page-header">
+            <h2 class="page-title">Manage Users</h2>
+            <button class="btn btn-primary" onclick="refreshUserList()">
+                <i class="fas fa-sync-alt"></i> Refresh List
+            </button>
+        </div>
+
+        <div class="user-management-grid">
+            <!-- Create User Form -->
+            <div class="create-user-card">
+                <h3 class="card-title">Create New User</h3>
+                <form id="new-user-form">
+                    <div class="form-group">
+                        <label for="new-username">Username <span class="required">*</span></label>
+                        <input type="text" id="new-username" required minlength="3" maxlength="50" placeholder="Enter username">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new-password">Password <span class="required">*</span></label>
+                        <input type="password" id="new-password" required minlength="6" placeholder="Minimum 6 characters">
+                    </div>
+                    
+                    <div class="form-group" id="role-selection" style="display: none;">
+                        <label for="new-role">Role <span class="required">*</span></label>
+                        <select id="new-role">
+                            <option value="user">User (Single Store Access)</option>
+                            <option value="admin">Administrator (Multi-Store Access)</option>
+                        </select>
+                        <small>Admins can manage users and access multiple stores</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new-store-ids">Store Access <span class="required">*</span></label>
+                        <div class="store-dropdown-container">
+                            <button type="button" class="store-dropdown-toggle" onclick="toggleStoreDropdown()">
+                                <span id="selected-stores-text">Select stores...</span>
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <div id="store-dropdown" class="store-dropdown-menu">
+                                <div class="store-dropdown-search">
+                                    <input type="text" placeholder="Search stores..." onkeyup="filterStoreOptions(this.value)">
+                                </div>
+                                <div id="store-options" class="store-dropdown-options">
+                                    <!-- Store checkboxes will be populated here -->
+                                </div>
+                            </div>
+                        </div>
+                        <small id="store-access-hint">Select one or more stores</small>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="fas fa-plus"></i> Create User
+                        </button>
+                    </div>
+                </form>
+                
+                <div id="create-user-message" style="margin-top: 15px;"></div>
+            </div>
+
+            <!-- User List -->
+            <div class="user-list-card">
+                <h3 class="card-title">
+                    <span>Managed Users</span>
+                    <span class="user-count" id="user-count"></span>
+                </h3>
+                
+                <div class="user-filters" style="margin-bottom: 15px;">
+                    <input type="text" id="user-search" placeholder="Search users..." class="search-input" onkeyup="filterUsers()">
+                </div>
+                
+                <div class="user-list" id="user-list">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i> Loading users...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/dashboard.js?v=20250903"></script>
+    <script>
+        let currentUser = null;
+        let allUsers = [];
+
+        // Initialize page
+        async function init() {
+            await loadUserInfo();
+            await refreshUserList();
+            setupFormValidation();
+        }
+
+        // Load current user information
+        async function loadUserInfo() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                const response = await authenticatedFetch('/api/me');
+                const userData = await response.json();
+                
+                if (userData) {
+                    currentUser = userData;
+                    document.getElementById('username').textContent = userData.username || 'Unknown';
+                    document.getElementById('user-role').textContent = userData.role_display || userData.role || 'Unknown';
+                    
+                    // Show role selection for super admins
+                    if (userData.role === 'super_admin') {
+                        document.getElementById('role-selection').style.display = 'block';
+                    }
+                    
+                    // Update store access hint based on role
+                    updateStoreAccessHint();
+                    
+                    // Check if user has permission to access this page
+                    if (userData.role !== 'admin' && userData.role !== 'super_admin') {
+                        window.location.href = '/';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading user info:', error);
+                window.location.href = '/login';
+            }
+        }
+
+        // Load available stores for the dropdown
+        async function loadAvailableStores() {
+            try {
+                const response = await authenticatedFetch('/api/stores');
+                const data = await response.json();
+                return data.stores || [];
+            } catch (error) {
+                console.error('Error fetching stores:', error);
+                return [];
+            }
+        }
+
+        // Initialize store dropdown
+        async function initializeStoreDropdown() {
+            const stores = await loadAvailableStores();
+            const storeOptionsContainer = document.getElementById('store-options');
+            
+            if (stores.length === 0) {
+                storeOptionsContainer.innerHTML = '<div style="padding: 10px; color: #666;">No stores available</div>';
+                return;
+            }
+            
+            if (currentUser.role === 'admin') {
+                // For admin users, only show stores they have access to
+                const adminStores = currentUser.store_ids || [];
+                const filteredStores = stores.filter(store => adminStores.includes(store));
+                
+                if (filteredStores.length === 0) {
+                    storeOptionsContainer.innerHTML = '<div class="empty-state">No stores available</div>';
+                    return;
+                }
+                
+                storeOptionsContainer.innerHTML = filteredStores.map(store => `
+                    <div class="store-option">
+                        <input type="checkbox" id="store-${store}" value="${store}" onchange="updateSelectedStores()">
+                        <label for="store-${store}">${store}</label>
+                    </div>
+                `).join('');
+            } else {
+                // Super admin can see all stores
+                storeOptionsContainer.innerHTML = stores.map(store => `
+                    <div class="store-option">
+                        <input type="checkbox" id="store-${store}" value="${store}" onchange="updateSelectedStores()">
+                        <label for="store-${store}">${store}</label>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Toggle store dropdown visibility
+        function toggleStoreDropdown() {
+            const dropdown = document.getElementById('store-dropdown');
+            const toggle = document.querySelector('.store-dropdown-toggle');
+            const isVisible = dropdown.classList.contains('show');
+            
+            if (!isVisible) {
+                dropdown.classList.add('show');
+                toggle.classList.add('active');
+                // Initialize stores if not already done
+                if (document.getElementById('store-options').children.length === 0) {
+                    initializeStoreDropdown();
+                }
+                // Focus search input
+                setTimeout(() => {
+                    const searchInput = dropdown.querySelector('input[type="text"]');
+                    if (searchInput) searchInput.focus();
+                }, 100);
+            } else {
+                dropdown.classList.remove('show');
+                toggle.classList.remove('active');
+            }
+        }
+
+        // Filter store options based on search
+        function filterStoreOptions(searchTerm) {
+            const options = document.querySelectorAll('.store-option');
+            const term = searchTerm.toLowerCase();
+            
+            options.forEach(option => {
+                const label = option.querySelector('label').textContent.toLowerCase();
+                option.style.display = label.includes(term) ? 'flex' : 'none';
+            });
+        }
+
+        // Update selected stores display
+        function updateSelectedStores() {
+            const checkboxes = document.querySelectorAll('#store-options input[type="checkbox"]:checked');
+            const selectedText = document.getElementById('selected-stores-text');
+            
+            if (checkboxes.length === 0) {
+                selectedText.textContent = 'Select stores...';
+            } else if (checkboxes.length === 1) {
+                selectedText.textContent = checkboxes[0].value;
+            } else {
+                selectedText.textContent = `${checkboxes.length} stores selected`;
+            }
+        }
+
+        // Get selected store IDs
+        function getSelectedStores() {
+            const checkboxes = document.querySelectorAll('#store-options input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const container = document.querySelector('.store-dropdown-container');
+            const dropdown = document.getElementById('store-dropdown');
+            const toggle = document.querySelector('.store-dropdown-toggle');
+            
+            if (container && !container.contains(e.target)) {
+                dropdown.classList.remove('show');
+                toggle.classList.remove('active');
+            }
+        });
+
+        // Update store access hint based on selected role
+        function updateStoreAccessHint() {
+            const roleSelect = document.getElementById('new-role');
+            const hint = document.getElementById('store-access-hint');
+            
+            if (currentUser.role === 'super_admin') {
+                const selectedRole = roleSelect.value;
+                if (selectedRole === 'user') {
+                    hint.textContent = 'Enter a single store ID for user access';
+                } else {
+                    hint.textContent = 'Enter comma-separated store IDs for multi-store access';
+                }
+            } else {
+                hint.textContent = 'Enter a single store ID (users can only access one store)';
+            }
+        }
+
+        // Setup form validation
+        function setupFormValidation() {
+            const roleSelect = document.getElementById('new-role');
+            if (roleSelect) {
+                roleSelect.addEventListener('change', updateStoreAccessHint);
+            }
+        }
+
+        // Refresh user list
+        async function refreshUserList() {
+            const userList = document.getElementById('user-list');
+            userList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading users...</div>';
+
+            try {
+                const response = await authenticatedFetch('/api/admin/users');
+                allUsers = await response.json();
+
+                displayUsers(allUsers);
+                
+                // Update user count
+                document.getElementById('user-count').textContent = `(${allUsers.length})`;
+                
+            } catch (error) {
+                console.error('Error loading users:', error);
+                userList.innerHTML = '<div class="error"><i class="fas fa-exclamation-circle"></i> Error loading users</div>';
+            }
+        }
+
+        // Display users
+        function displayUsers(users) {
+            const userList = document.getElementById('user-list');
+            
+            if (users.length === 0) {
+                userList.innerHTML = '<div class="no-users">No users found. Create your first user using the form.</div>';
+                return;
+            }
+
+            userList.innerHTML = users.map(user => `
+                <div class="user-item ${!user.is_active ? 'inactive' : ''}">
+                    <div class="user-info">
+                        <div class="user-header">
+                            <span class="user-name">
+                                <i class="fas fa-user"></i> ${user.username}
+                            </span>
+                            <span class="user-role-badge ${user.role}">${user.role_display}</span>
+                        </div>
+                        <div class="user-details">
+                            <span class="user-stores">
+                                <i class="fas fa-store"></i> 
+                                ${user.store_ids.length > 0 ? user.store_ids.join(', ') : 'No stores assigned'}
+                            </span>
+                            <span class="user-status ${user.is_active ? 'active' : 'inactive'}">
+                                <i class="fas fa-circle"></i> ${user.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                            <span class="user-created">
+                                <i class="fas fa-calendar"></i> 
+                                Created: ${new Date(user.created_at).toLocaleDateString()}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="user-actions">
+                        <button class="btn btn-sm ${user.is_active ? 'btn-warning' : 'btn-success'}" 
+                                onclick="toggleUserStatus(${user.id})" title="${user.is_active ? 'Deactivate' : 'Activate'}">
+                            <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmDeleteUser(${user.id}, '${user.username}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Filter users based on search
+        function filterUsers() {
+            const searchTerm = document.getElementById('user-search').value.toLowerCase();
+            
+            if (!searchTerm) {
+                displayUsers(allUsers);
+                return;
+            }
+            
+            const filteredUsers = allUsers.filter(user => 
+                user.username.toLowerCase().includes(searchTerm) ||
+                user.role_display.toLowerCase().includes(searchTerm) ||
+                user.store_ids.some(store => store.toLowerCase().includes(searchTerm))
+            );
+            
+            displayUsers(filteredUsers);
+        }
+
+        // Handle create user form submission
+        document.getElementById('new-user-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const messageDiv = document.getElementById('create-user-message');
+            
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+            messageDiv.innerHTML = '';
+            
+            const username = document.getElementById('new-username').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = document.getElementById('new-role').value;
+            
+            // Get selected store IDs from dropdown
+            const storeIds = getSelectedStores();
+            
+            // Validate store selection
+            if (storeIds.length === 0) {
+                messageDiv.innerHTML = '<div class="alert alert-error">Please select at least one store</div>';
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="fas fa-plus"></i> Create User';
+                return;
+            }
+            
+            // Validate based on role
+            if (currentUser.role === 'admin' || (currentUser.role === 'super_admin' && role === 'user')) {
+                if (storeIds.length !== 1) {
+                    messageDiv.innerHTML = '<div class="alert alert-error">Regular users must be assigned exactly one store</div>';
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = '<i class="fas fa-plus"></i> Create User';
+                    return;
+                }
+            }
+            
+            try {
+                let endpoint, data;
+                
+                if (currentUser.role === 'super_admin') {
+                    endpoint = '/api/superadmin/admins';
+                    data = {
+                        username,
+                        password,
+                        role,
+                        store_ids: storeIds
+                    };
+                } else {
+                    endpoint = '/api/admin/users';
+                    data = {
+                        username,
+                        password,
+                        store_ids: storeIds
+                    };
+                }
+                
+                const response = await authenticatedFetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    messageDiv.innerHTML = '<div class="alert alert-success">User created successfully!</div>';
+                    document.getElementById('new-user-form').reset();
+                    // Clear store selections
+                    document.querySelectorAll('#store-options input[type="checkbox"]').forEach(cb => cb.checked = false);
+                    updateSelectedStores();
+                    refreshUserList();
+                    
+                    // Clear success message after 3 seconds
+                    setTimeout(() => {
+                        messageDiv.innerHTML = '';
+                    }, 3000);
+                } else {
+                    // Handle specific error cases
+                    if (response.status === 403) {
+                        throw new Error(result.detail || 'You do not have permission to perform this action');
+                    } else {
+                        throw new Error(result.detail || result.message || 'Error creating user');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error creating user:', error);
+                messageDiv.innerHTML = `<div class="alert alert-error">${error.message}</div>`;
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = '<i class="fas fa-plus"></i> Create User';
+            }
+        });
+
+        // Toggle user status
+        async function toggleUserStatus(userId) {
+            try {
+                const response = await authenticatedFetch(`/api/admin/users/${userId}/toggle-active`, {
+                    method: 'PUT'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showToast(result.message, 'success');
+                    refreshUserList();
+                } else {
+                    showToast(result.message || 'Error updating user status', 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error updating user status:', error);
+                showToast('Error updating user status', 'error');
+            }
+        }
+
+        // Confirm and delete user
+        async function confirmDeleteUser(userId, username) {
+            if (confirm(`Are you sure you want to delete user "${username}"?\n\nThis action cannot be undone.`)) {
+                try {
+                    const response = await authenticatedFetch(`/api/admin/users/${userId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        showToast(result.message || 'User deleted successfully', 'success');
+                        // Force refresh the user list
+                        await refreshUserList();
+                    } else {
+                        showToast(result.message || result.detail || 'Error deleting user', 'error');
+                    }
+                    
+                } catch (error) {
+                    console.error('Error deleting user:', error);
+                    showToast('Error deleting user', 'error');
+                }
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                ${message}
+            `;
+            
+            // Add to page
+            document.body.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => toast.classList.add('show'), 100);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/login';
+        }
+
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
