@@ -1,20 +1,6 @@
 // Dashboard JavaScript - Vehicle Processing Dashboard
 // Professional dashboard with search, filtering, and real-time updates
 
-// Executive Number Formatting Utility
-function formatExecutiveNumber(value) {
-    if (value === null || value === undefined || value === '' || isNaN(value)) {
-        return '-';
-    }
-
-    const num = typeof value === 'string' ? parseInt(value.replace(/[,$]/g, '')) : value;
-
-    if (isNaN(num)) return '-';
-
-    // Format with thousand separators for executive readability
-    return num.toLocaleString('en-US');
-}
-
 // Helper function for authenticated API calls
 function authenticatedFetch(url, options = {}) {
     const token = localStorage.getItem('token');
@@ -365,9 +351,9 @@ class VehicleDashboard {
             }
         };
         
-        updateElement('total-vehicles', formatExecutiveNumber(stats.total_vehicles || 0));
-        updateElement('descriptions-updated', formatExecutiveNumber(stats.descriptions_updated || 0));
-        updateElement('total-features', formatExecutiveNumber(stats.total_features_marked || 0));
+        updateElement('total-vehicles', stats.total_vehicles || '0');
+        updateElement('descriptions-updated', stats.descriptions_updated || '0');
+        updateElement('total-features', stats.total_features_marked || '0');
         
         // Update new metrics
         this.updateBookValueDisplay();
@@ -375,7 +361,7 @@ class VehicleDashboard {
         // Update time saved with better formatting
         updateElement('time-saved', stats.time_saved_formatted || '0 MINUTES');
         // vehicles-processed element is commented out in HTML
-        updateElement('vehicles-processed', formatExecutiveNumber(stats.successful_processing || 0));
+        updateElement('vehicles-processed', stats.successful_processing || '0');
     }
 
     updateBookValueDisplay() {

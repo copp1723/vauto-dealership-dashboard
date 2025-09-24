@@ -376,27 +376,20 @@ def get_accessible_store_ids(current_user: User, selected_store_id: Optional[str
 def apply_store_filter(query, current_user: User, selected_store_id: Optional[str] = None):
     """Apply store-based filtering to a query based on user role and permissions"""
     from database import VehicleProcessingRecord
-
-    print(f"DEBUG apply_store_filter: user_role={current_user.role}, selected_store_id={selected_store_id}")
+    
     accessible_stores = get_accessible_store_ids(current_user, selected_store_id)
-    print(f"DEBUG apply_store_filter: accessible_stores={accessible_stores}")
-
+    
     if accessible_stores:
         # User has specific store access - filter by those stores
-        print(f"DEBUG apply_store_filter: Filtering by specific stores: {accessible_stores}")
         return query.filter(VehicleProcessingRecord.environment_id.in_(accessible_stores))
     elif current_user.role == UserRole.SUPER_ADMIN and not selected_store_id:
         # Super admin with no specific store selected - access all stores
-        print(f"DEBUG apply_store_filter: Super admin with no store filter - returning all vehicles")
         return query  # No filtering needed
     else:
         # Fallback to old behavior for backward compatibility
-        print(f"DEBUG apply_store_filter: Fallback case - user.store_id={current_user.store_id}")
         if current_user.store_id:
             return query.filter(VehicleProcessingRecord.environment_id == current_user.store_id)
         else:
-            # No store filtering for this user - return all vehicles
-            print(f"DEBUG apply_store_filter: No store restrictions - returning all vehicles")
             return query
 
 # Helper Functions for Statistics
@@ -1001,9 +994,7 @@ async def get_vehicles(
             query = session.query(VehicleProcessingRecord)
             
             # Apply role-based store filtering
-            print(f"DEBUG: User role={current_user.role}, store_ids={current_user.get_store_ids()}, selected_store_id={store_id}")
             query = apply_store_filter(query, current_user, store_id)
-            print(f"DEBUG: Query after store filter applied")
             
             # Apply search filter if provided
             if search:
@@ -1030,13 +1021,11 @@ async def get_vehicles(
             
             # Get total count
             total = query.count()
-            print(f"DEBUG: Total vehicles after filtering: {total}")
-
+            
             # Apply pagination and ordering
             vehicles = query.order_by(
                 VehicleProcessingRecord.processing_date.desc()
             ).offset((page - 1) * per_page).limit(per_page).all()
-            print(f"DEBUG: Returned {len(vehicles)} vehicles for page {page}")
             
             # Convert to response format
             vehicle_list = []
