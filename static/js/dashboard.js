@@ -365,9 +365,9 @@ class VehicleDashboard {
             }
         };
         
-        updateElement('total-vehicles', formatExecutiveNumber(stats.total_vehicles || 0));
-        updateElement('descriptions-updated', formatExecutiveNumber(stats.descriptions_updated || 0));
-        updateElement('total-features', formatExecutiveNumber(stats.total_features_marked || 0));
+        updateElement('total-vehicles', (stats.total_vehicles || 0).toLocaleString());
+        updateElement('descriptions-updated', (stats.descriptions_updated || 0).toLocaleString());
+        updateElement('total-features', (stats.total_features_marked || 0).toLocaleString());
         
         // Update new metrics
         this.updateBookValueDisplay();

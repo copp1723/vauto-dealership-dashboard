@@ -89,6 +89,224 @@
             background-color: #f8fafc;
         }
 
+        /* Loading overlay styles */
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .loading-content {
+            text-align: center;
+        }
+
+        .loading-spinner-large {
+            font-size: 1.5rem;
+            color: var(--dark-blue);
+            margin-bottom: 0.5rem;
+        }
+
+        .loading-text {
+            color: #64748b;
+            font-size: 0.875rem;
+        }
+
+        /* Book value cards styles */
+        .book-value-cards {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .book-value-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            transition: all 0.2s ease;
+        }
+
+        .book-value-card.positive {
+            border-left: 4px solid #10b981;
+        }
+
+        .book-value-card.negative {
+            border-left: 4px solid #ef4444;
+        }
+
+        .book-value-card.neutral {
+            border-left: 4px solid #64748b;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-source {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-amount {
+            font-size: 0.875rem;
+            font-weight: 700;
+        }
+
+        .card-amount.positive {
+            color: #10b981;
+        }
+
+        .card-amount.negative {
+            color: #ef4444;
+        }
+
+        .card-amount.neutral {
+            color: #64748b;
+        }
+
+        .sidebar-empty {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #64748b;
+        }
+
+        .empty-icon {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        /* Mobile sidebar styles */
+        .sidebar-toggle {
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 50;
+            background: var(--dark-blue);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        @media (max-width: 1024px) {
+            #book-value-sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                z-index: 45;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+
+            #book-value-sidebar.mobile-open {
+                transform: translateX(0);
+            }
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-width: 24rem;
+        }
+
+        .toast {
+            background: white;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            transform: translateX(100%);
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        .toast.success {
+            border-left: 4px solid #10b981;
+        }
+
+        .toast.error {
+            border-left: 4px solid #ef4444;
+        }
+
+        .toast.info {
+            border-left: 4px solid #3b82f6;
+        }
+
+        .toast i {
+            font-size: 1.125rem;
+        }
+
+        .toast.success i {
+            color: #10b981;
+        }
+
+        .toast.error i {
+            color: #ef4444;
+        }
+
+        .toast.info i {
+            color: #3b82f6;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
     </style>
 </head>
 <body class="text-slate-800">
@@ -155,14 +373,38 @@
             </div>
         </header>
 
+        <!-- Mobile Sidebar Toggle -->
+        <button class="sidebar-toggle" id="sidebar-toggle" style="display: none;">
+            <i class="fas fa-chart-line"></i>
+        </button>
+
+        <!-- Sidebar Overlay for Mobile -->
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
         <div class="flex flex-1 overflow-hidden">
             <!-- Left Sidebar -->
-            <aside class="w-1/4 max-w-xs bg-white border-r border-slate-200 p-6 flex-col hidden md:flex">
-                <h2 class="text-lg font-semibold text-dark-blue mb-4">Recent Changes</h2>
-                <div id="book-value-sidebar-content" class="border border-slate-200 rounded-lg overflow-hidden">
-                    <!-- Book value changes will be populated by JavaScript -->
-                    <div class="p-4 text-center text-sm text-gray-500">
-                        Loading recent changes...
+            <aside class="w-1/4 max-w-xs bg-white border-r border-slate-200 p-6 flex-col hidden md:flex" id="book-value-sidebar">
+                <div class="sidebar-header">
+                    <div class="header-content">
+                        <h3 id="sidebar-title" class="text-lg font-semibold text-dark-blue mb-4">Book Value Changes</h3>
+                        <p class="sidebar-subtitle" id="sidebar-breakdown-period"></p>
+                    </div>
+                </div>
+                <div class="sidebar-content">
+                    <div class="loading-overlay" id="sidebar-loading">
+                        <div class="loading-content">
+                            <div class="loading-spinner-large">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </div>
+                            <p class="loading-text">Loading book values...</p>
+                        </div>
+                    </div>
+                    <div class="book-value-cards" id="book-value-cards-container">
+                        <!-- Book value cards will be populated here -->
+                    </div>
+                    <div class="sidebar-empty" id="sidebar-empty" style="display: none;">
+                        <div class="empty-icon"><i class="fas fa-chart-line"></i></div>
+                        <p>No value changes detected for this period</p>
                     </div>
                 </div>
             </aside>
@@ -181,60 +423,116 @@
                          </select>
                      </div>
 
-                    <!-- Tighter KPI Snapshot -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Statistics Section with Loading Overlay -->
+                    <section class="statistics-section" style="position: relative;">
+                        <div class="loading-overlay" id="stats-loading">
+                            <div class="loading-content">
+                                <div class="loading-spinner-large">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                </div>
+                                <p class="loading-text">Loading statistics...</p>
+                            </div>
+                        </div>
+                        <!-- Statistics Grid with proper IDs for data binding -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
                             <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Total Vehicles</h3>
-                            <p class="text-xl font-bold text-text-dark">1,391</p>
+                            <p class="text-xl font-bold text-text-dark" id="total-vehicles">-</p>
                         </div>
                         <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
                              <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Descriptions Updated</h3>
-                             <p class="text-xl font-bold text-text-dark">1,185</p>
+                             <p class="text-xl font-bold text-text-dark" id="descriptions-updated">-</p>
                         </div>
                         <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
                              <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Features Marked</h3>
-                             <p class="text-xl font-bold text-text-dark">10,535</p>
+                             <p class="text-xl font-bold text-text-dark" id="total-features">-</p>
                         </div>
                         <div class="bg-white border border-slate-200 rounded-lg p-4 flex flex-col gap-1.5">
                              <h3 class="text-xs text-text-light font-semibold uppercase tracking-wider">Time Saved</h3>
-                             <p class="text-xl font-bold text-text-dark">253h 55m</p>
+                             <p class="text-xl font-bold text-text-dark" id="time-saved">0 MINUTES</p>
+                        </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Search and Filter Section -->
+                <section class="search-section mb-6">
+                    <div class="search-container">
+                        <div class="search-box relative">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" id="search-input" placeholder="Search by stock number..." autocomplete="off" class="w-full py-2.5 pl-9 pr-12 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-dark-blue">
+                            <button class="search-clear absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600" id="search-clear" onclick="clearSearch()" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="search-filters flex gap-4 mt-3">
+                            <select id="status-filter" class="border border-slate-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-dark-blue">
+                                <option value="">All Status</option>
+                                <option value="success">Successful</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                            <select id="description-filter" class="border border-slate-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-dark-blue">
+                                <option value="">All Descriptions</option>
+                                <option value="updated">Updated</option>
+                                <option value="none">Not Updated</option>
+                            </select>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <!-- Recently Processed Vehicles Section -->
-                <div class="mb-6">
-                    <h3 class="text-lg font-semibold text-dark-blue mb-3">Recently Processed Vehicles</h3>
-                    <div id="recently-processed-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                        <!-- Recently processed vehicles will be populated by JavaScript -->
-                    </div>
-                </div>
-
-                <!-- Table Section -->
-                <div class="bg-white p-6 rounded-lg border border-slate-200">
-                    <div class="flex items-center mb-4">
-                        <div class="relative w-full max-w-sm">
-                            <input placeholder="Search by stock number..." id="search" class="w-full py-2.5 pl-9 pr-3 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-dark-blue">
-                            <svg class="w-[18px] h-[18px] text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <!-- Vehicles Section -->
+                <section class="vehicles-section">
+                    <div class="section-header flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-semibold text-dark-blue">Vehicle Processing Records</h2>
+                        <div class="section-actions">
+                            <span class="results-count text-sm text-slate-600" id="results-count">Loading...</span>
                         </div>
                     </div>
 
-                    <table class="min-w-full divide-y divide-slate-200">
-                        <thead class="bg-slate-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Vehicle</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock #</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Processed At</th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody id="vehicles-table-body" class="bg-white divide-y divide-slate-200">
-                            <!-- Vehicle data will be populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
+                    <!-- Loading State with Skeleton Loaders -->
+                    <div class="loading-state" id="loading-state" style="display: none;">
+                        <div class="text-center py-12">
+                            <i class="fas fa-spinner fa-spin text-2xl text-slate-400 mb-4"></i>
+                            <p class="text-slate-600">Loading vehicles...</p>
+                        </div>
+                    </div>
+
+                    <!-- Error State -->
+                    <div class="error-state" id="error-state" style="display: none;">
+                        <div class="text-center py-12">
+                            <div class="error-icon text-red-400 text-4xl mb-4">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <p id="error-message" class="text-red-600 mb-4">Failed to load vehicle data</p>
+                            <button class="btn btn-primary px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" onclick="loadVehicles()">Try Again</button>
+                        </div>
+                    </div>
+
+                    <!-- Vehicles Grid -->
+                    <div id="vehicles-grid">
+                        <!-- Vehicle cards will be dynamically populated -->
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination flex justify-center items-center gap-4 mt-8" id="pagination" style="display: none;">
+                        <button class="pagination-btn px-4 py-2 bg-white border border-slate-300 rounded text-sm hover:bg-slate-50" id="prev-btn" onclick="changePage(-1)">
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <div class="pagination-info text-sm text-slate-600">
+                            Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+                        </div>
+                        <button class="pagination-btn px-4 py-2 bg-white border border-slate-300 rounded text-sm hover:bg-slate-50" id="next-btn" onclick="changePage(1)">
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </section>
             </main>
         </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container">
+        <!-- Toast notifications will appear here -->
     </div>
 
     <!-- Vehicle Detail Modal -->
@@ -338,234 +636,35 @@
             });
         }
 
-        // Simple Tailwind-specific dashboard initialization
-        class TailwindDashboard {
-            constructor() {
-                this.initializeEventListeners();
-                this.initializeData();
-            }
-
-            initializeEventListeners() {
-                // Search functionality
-                const searchInput = document.getElementById('search');
-                if (searchInput) {
-                    let searchTimeout;
-                    searchInput.addEventListener('input', (e) => {
-                        clearTimeout(searchTimeout);
-                        searchTimeout = setTimeout(() => {
-                            this.searchVehicles(e.target.value);
-                        }, 300);
-                    });
-                }
-            }
-
-            async searchVehicles(query) {
-                try {
-                    let url = '/api/vehicles?page=1&per_page=20';
-                    if (query && query.trim()) {
-                        url += `&search=${encodeURIComponent(query.trim())}`;
-                    }
-
-                    const response = await authenticatedFetch(url);
-                    const data = await response.json();
-                    if (data.success) {
-                        this.updateVehiclesTable(data.vehicles);
-                    }
-                } catch (error) {
-                    console.error('Error searching vehicles:', error);
-                }
-            }
-
-            async initializeData() {
-                try {
-                    // Load real statistics
-                    const statsResponse = await authenticatedFetch('/api/statistics');
-                    const statsData = await statsResponse.json();
-                    if (statsData.success) {
-                        this.updateStatistics(statsData.statistics);
-                        this.updateSidebar(statsData.statistics);
-                    }
-
-                    // Load recent vehicles for the cards
-                    const vehiclesResponse = await authenticatedFetch('/api/vehicles?page=1&per_page=6');
-                    const vehiclesData = await vehiclesResponse.json();
-                    if (vehiclesData.success) {
-                        this.updateRecentVehicles(vehiclesData.vehicles);
-                    }
-
-                    // Load all vehicles for the table
-                    const allVehiclesResponse = await authenticatedFetch('/api/vehicles?page=1&per_page=20');
-                    const allVehiclesData = await allVehiclesResponse.json();
-                    if (allVehiclesData.success) {
-                        this.updateVehiclesTable(allVehiclesData.vehicles);
-                    }
-                } catch (error) {
-                    console.error('Error loading dashboard data:', error);
-                }
-            }
-
-            updateStatistics(stats) {
-                // Update KPI cards with real data - use more specific selectors
-                const kpiGrid = document.querySelector('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4');
-                if (!kpiGrid) return;
-
-                const cards = kpiGrid.querySelectorAll('.bg-white');
-
-                // Total Vehicles (first card)
-                if (cards[0]) {
-                    const element = cards[0].querySelector('p.text-xl');
-                    if (element) element.textContent = (stats.total_vehicles || 0).toLocaleString();
-                }
-
-                // Descriptions Updated (second card)
-                if (cards[1]) {
-                    const element = cards[1].querySelector('p.text-xl');
-                    if (element) element.textContent = (stats.descriptions_updated || 0).toLocaleString();
-                }
-
-                // Features Marked (third card)
-                if (cards[2]) {
-                    const element = cards[2].querySelector('p.text-xl');
-                    if (element) element.textContent = (stats.total_features_marked || 0).toLocaleString();
-                }
-
-                // Time Saved (fourth card)
-                if (cards[3]) {
-                    const element = cards[3].querySelector('p.text-xl');
-                    if (element && stats.time_saved_formatted) {
-                        element.textContent = stats.time_saved_formatted;
-                    }
-                }
-            }
-
-            updateRecentVehicles(vehicles) {
-                const grid = document.getElementById('recently-processed-grid');
-                if (!grid) return;
-
-                grid.innerHTML = vehicles.slice(0, 6).map(vehicle => `
-                    <div class="bg-white border border-slate-200 rounded-lg p-4 cursor-pointer hover:bg-slate-50 transition-colors" onclick="showVehicleDetails(${vehicle.id})">
-                        <div class="flex justify-between items-start mb-2">
-                            <h4 class="font-medium text-text-dark text-sm">${vehicle.vehicle_name || vehicle.name || `Stock #${vehicle.stock_number}`}</h4>
-                            <span class="px-2 py-1 text-xs font-medium rounded-full ${this.getStatusClass(vehicle)}">
-                                ${this.formatStatus(vehicle)}
-                            </span>
-                        </div>
-                        <p class="text-xs text-text-light mb-1">Stock: ${vehicle.stock_number}</p>
-                        <p class="text-xs text-text-light">${this.formatDate(vehicle.processing_date)}</p>
-                    </div>
-                `).join('');
-            }
-
-            updateVehiclesTable(vehicles) {
-                const tbody = document.getElementById('vehicles-table-body');
-                if (!tbody) return;
-
-                tbody.innerHTML = vehicles.map(vehicle => `
-                    <tr class="clickable-row cursor-pointer hover:bg-slate-50" onclick="showVehicleDetails(${vehicle.id})">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-dark">${vehicle.vehicle_name || vehicle.name || 'Unknown Vehicle'}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">${vehicle.stock_number}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">${this.formatDate(vehicle.processing_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${this.getStatusClass(vehicle)}">
-                                ${this.formatStatus(vehicle)}
-                            </span>
-                        </td>
-                    </tr>
-                `).join('');
-            }
-
-            getStatusClass(vehicle) {
-                if (vehicle.processing_successful) return 'bg-green-100 text-green-800';
-                if (vehicle.processing_status === 'processing') return 'bg-yellow-100 text-yellow-800';
-                if (vehicle.processing_status === 'failed' || !vehicle.processing_successful) return 'bg-red-100 text-red-800';
-                return 'bg-gray-100 text-gray-800';
-            }
-
-            formatStatus(vehicle) {
-                if (vehicle.processing_successful) return 'Completed';
-                if (vehicle.processing_status === 'processing') return 'In Progress';
-                if (vehicle.processing_status === 'failed' || !vehicle.processing_successful) return 'Failed';
-                return 'Pending';
-            }
-
-            formatDate(dateString) {
-                if (!dateString) return 'Unknown';
-                const date = new Date(dateString);
-                return date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit'
-                });
-            }
-
-            updateSidebar(stats) {
-                const sidebarContent = document.getElementById('book-value-sidebar-content');
-                if (!sidebarContent) return;
-
-                // Use book value insights from statistics if available
-                const insights = stats.book_value_insights_mtd || {};
-                const categories = insights.categories || {};
-                const categoryKeys = Object.keys(categories);
-
-                if (categoryKeys.length === 0) {
-                    sidebarContent.innerHTML = `
-                        <div class="p-4 text-center text-sm text-gray-500">
-                            No recent book value changes
-                        </div>
-                    `;
-                    return;
-                }
-
-                const rows = categoryKeys.map((category, index) => {
-                    const data = categories[category];
-                    const difference = data.difference || 0;
-                    const isEven = index % 2 === 0;
-                    const colorClass = difference > 0 ? 'text-green-700' : difference < 0 ? 'text-red-700' : 'text-gray-700';
-                    const formattedDiff = this.formatCurrency(difference, true);
-
-                    return `
-                        <div class="flex justify-between items-center py-2.5 px-3 text-sm ${isEven ? 'bg-slate-50' : ''}">
-                            <span class="font-semibold text-text-light">${category}</span>
-                            <span class="font-medium ${colorClass}">${formattedDiff}</span>
-                        </div>
-                    `;
-                }).join('');
-
-                sidebarContent.innerHTML = rows;
-            }
-
-            formatCurrency(amount, showSign = false) {
-                if (amount === 0) return '$0';
-                const formatted = new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                }).format(Math.abs(amount));
-
-                if (!showSign) return formatted;
-                return amount > 0 ? `+${formatted}` : `-${formatted}`;
+        // Dashboard data loading functionality
+        // This function will be called once both user info and dashboard are loaded
+        async function loadDashboardData() {
+            if (window.dashboard && window.dashboard.loadInitialData) {
+                // Use the full dashboard's data loading functionality
+                await window.dashboard.loadInitialData();
             }
         }
 
         // Global function to show vehicle details using full dashboard functionality
         async function showVehicleDetails(vehicleId) {
-            try {
-                const response = await authenticatedFetch(`/api/vehicle/${vehicleId}`);
-                const data = await response.json();
-
-                if (data.success && window.dashboard) {
-                    // Use the full dashboard's modal functionality
-                    window.dashboard.displayVehicleModal(data.vehicle);
-                } else {
-                    // Fallback simple modal
-                    showSimpleModal(data.vehicle || { id: vehicleId, error: 'Failed to load details' });
+            if (window.dashboard && window.dashboard.showVehicleDetails) {
+                // Use the full dashboard's vehicle details functionality
+                await window.dashboard.showVehicleDetails(vehicleId);
+            } else {
+                // Fallback for when dashboard is not ready
+                console.warn('Dashboard not ready, trying to load vehicle details directly');
+                try {
+                    const response = await authenticatedFetch(`/api/vehicle/${vehicleId}`);
+                    const data = await response.json();
+                    if (data.success) {
+                        showSimpleModal(data.vehicle);
+                    } else {
+                        alert('Failed to load vehicle details');
+                    }
+                } catch (error) {
+                    console.error('Error loading vehicle details:', error);
+                    alert('Failed to load vehicle details');
                 }
-            } catch (error) {
-                console.error('Error loading vehicle details:', error);
-                alert('Failed to load vehicle details');
             }
         }
 
@@ -605,8 +704,7 @@
             modal.classList.remove('hidden');
         }
 
-        // Initialize the Tailwind dashboard
-        const tailwindDash = new TailwindDashboard();
+        // The main dashboard will be initialized by dashboard.js after DOMContentLoaded
 
         // Modal controls
         const vehicleModal = document.getElementById('vehicleModal');
