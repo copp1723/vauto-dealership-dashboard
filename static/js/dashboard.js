@@ -193,44 +193,52 @@ class VehicleDashboard {
 
     initializeEventListeners() {
         // Search functionality
-        const searchInput = document.getElementById('search-input');
+        const searchInput = document.getElementById('search');
         const searchClear = document.getElementById('search-clear');
         const statusFilter = document.getElementById('status-filter');
         const descriptionFilter = document.getElementById('description-filter');
 
         // Search input with debouncing
-        let searchTimeout;
-        searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-                this.currentSearch = e.target.value.trim();
+        if (searchInput) {
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.currentSearch = e.target.value.trim();
+                    this.currentPage = 1;
+                    this.loadVehicles();
+                    this.updateSearchClearButton();
+                }, 300);
+            });
+        }
+
+        // Search clear button
+        if (searchClear && searchInput) {
+            searchClear.addEventListener('click', () => {
+                searchInput.value = '';
+                this.currentSearch = '';
                 this.currentPage = 1;
                 this.loadVehicles();
                 this.updateSearchClearButton();
-            }, 300);
-        });
-
-        // Search clear button
-        searchClear.addEventListener('click', () => {
-            searchInput.value = '';
-            this.currentSearch = '';
-            this.currentPage = 1;
-            this.loadVehicles();
-            this.updateSearchClearButton();
-        });
+            });
+        }
 
         // Filter changes
-        statusFilter.addEventListener('change', (e) => {
-            this.statusFilter = e.target.value;
-            this.currentPage = 1;
-            this.loadVehicles();
-        });
+        if (statusFilter) {
+            statusFilter.addEventListener('change', (e) => {
+                this.statusFilter = e.target.value;
+                this.currentPage = 1;
+                this.loadVehicles();
+            });
+        }
 
-        descriptionFilter.addEventListener('change', (e) => {
-            this.descriptionFilter = e.target.value;
-            this.currentPage = 1;
-            this.loadVehicles();
-        });
+        if (descriptionFilter) {
+            descriptionFilter.addEventListener('change', (e) => {
+                this.descriptionFilter = e.target.value;
+                this.currentPage = 1;
+                this.loadVehicles();
+            });
+        }
 
         // Book value period dropdown removed - always use MTD data
 
@@ -252,7 +260,9 @@ class VehicleDashboard {
             }
             if (e.key === '/' && !e.target.matches('input, textarea')) {
                 e.preventDefault();
-                searchInput.focus();
+                if (searchInput) {
+                    searchInput.focus();
+                }
             }
         });
     }
@@ -837,7 +847,7 @@ class VehicleDashboard {
 
     updateSearchClearButton() {
         const searchClear = document.getElementById('search-clear');
-        const searchInput = document.getElementById('search-input');
+        const searchInput = document.getElementById('search');
         
         if (searchInput.value.trim()) {
             searchClear.style.display = 'block';
@@ -1432,10 +1442,6 @@ function clearSearch() {
 
 function changePage(direction) {
     dashboard.changePage(direction);
-}
-
-function closeModal() {
-    dashboard.closeModal();
 }
 
 function loadVehicles() {
