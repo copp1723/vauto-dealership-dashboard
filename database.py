@@ -33,22 +33,25 @@ class UserRole(str, enum.Enum):
 class User(Base):
     """User authentication model for dashboard access"""
     __tablename__ = 'users'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
-    hashed_password = Column(String(255), nullable=False)  # Legacy SHA256 hash storage
+    password_hash = Column(String(255), nullable=False)  # Match actual database column
     role = Column(String(20), nullable=False, default=UserRole.USER.value, index=True)
     store_id = Column(String(100), nullable=True, index=True)
+    store_ids = Column(Text, nullable=True)  # JSON string for multiple stores
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login = Column(DateTime, nullable=True)
+    created_by_id = Column(Integer, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
     def set_password(self, password: str):
         """Hash and set password using legacy SHA256 for compatibility"""
-        self.hashed_password = self._legacy_hash(password)
+        self.password_hash = self._legacy_hash(password)
 
     def check_password(self, password: str) -> bool:
         """Check if provided password matches stored hash"""
-        stored = self.hashed_password or ""
+        stored = self.password_hash or ""
 
         # Support accounts that were migrated to bcrypt during unauthorized changes
         if stored.startswith("$2"):
