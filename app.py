@@ -461,9 +461,18 @@ def calculate_book_value_insights(before_data: Dict, after_data: Dict) -> Dict:
         for category in all_categories:
             if not category:  # Skip empty categories
                 continue
-                
+
             before_val = parse_currency_value(before_data.get(category, '0'))
             after_val = parse_currency_value(after_data.get(category, '0'))
+
+            # Enhanced filtering logic to exclude initial merchandising
+            # Only include legitimate changes (both values exist and are non-zero)
+            # This excludes initial merchandising (0 -> value) which isn't automation impact
+            if (before_val is None or after_val is None or
+                before_val == 0.0 or after_val == 0.0 or
+                before_val <= 0 or after_val <= 0):
+                continue
+
             difference = after_val - before_val
             
             insights['categories'][category] = {
