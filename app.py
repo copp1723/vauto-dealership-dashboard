@@ -224,6 +224,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize templates
 templates = Jinja2Templates(directory="templates")
+# Include Cron Management API routes
+from cron_routes import router as cron_router
+app.include_router(cron_router)
+
 
 # Initialize database manager (will use environment variables for database connection)
 print("Initializing database connection...")
@@ -289,7 +293,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         token_value = credentials.credentials
         if not token_value:
@@ -303,7 +307,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     except JWTError as e:
         print(f"JWT Error: {e}")
         raise credentials_exception
-    
+
     with db_manager.get_session() as session:
         user = session.query(User).filter(User.username == username).first()
         if user is None or not user.is_active:
@@ -323,7 +327,7 @@ def require_role(required_roles: List[UserRole]):
                     if isinstance(arg, User):
                         current_user = arg
                         break
-            
+
             if not current_user:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -337,7 +341,7 @@ def require_role(required_roles: List[UserRole]):
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Access denied. Required roles: {[role.value for role in required_roles]}"
                 )
-            
+
             return await func(*args, **kwargs)
         return wrapper
     return decorator
@@ -410,7 +414,7 @@ def calculate_book_value_difference(before_data: Dict, after_data: Dict) -> floa
     try:
         before_kbb = parse_currency_value(before_data.get('KBB', '0')) if before_data else 0.0
         after_kbb = parse_currency_value(after_data.get('KBB', '0')) if after_data else 0.0
-        
+
         # If no KBB, try other major sources
         if before_kbb == 0 and after_kbb == 0:
             for source in ['rBook', 'J.D. Power', 'MMR', 'Black Book']:
@@ -418,7 +422,7 @@ def calculate_book_value_difference(before_data: Dict, after_data: Dict) -> floa
                 after_val = parse_currency_value(after_data.get(source, '0')) if after_data else 0.0
                 if before_val > 0 or after_val > 0:
                     return after_val - before_val
-        
+
         return after_kbb - before_kbb
     except (ValueError, TypeError, KeyError):
         return 0.0
@@ -443,25 +447,25 @@ def calculate_book_value_insights(before_data: Dict, after_data: Dict) -> Dict:
         'primary_source': 'KBB',
         'summary': 'No data available'
     }
-    
+
     try:
         if not before_data or not after_data:
             return insights
-            
+
         # Common book value categories we expect to see
         all_categories = set()
         if isinstance(before_data, dict):
             all_categories.update(before_data.keys())
         if isinstance(after_data, dict):
             all_categories.update(after_data.keys())
-            
+
         # Remove empty string keys
         all_categories.discard('')
-        
+
         best_improvement = 0.0
         best_category = ''
         primary_diff = 0.0
-        
+
         # Calculate differences for each category
         for category in all_categories:
             if not category:  # Skip empty categories
@@ -479,19 +483,19 @@ def calculate_book_value_insights(before_data: Dict, after_data: Dict) -> Dict:
                 continue
 
             difference = after_val - before_val
-            
+
             insights['categories'][category] = {
                 'before': before_val,
                 'after': after_val,
                 'difference': difference,
                 'improvement': difference > 0
             }
-            
+
             # Track best improvement
             if difference > best_improvement:
                 best_improvement = difference
                 best_category = category
-                
+
             # Use KBB as primary, fallback to others
             if category == 'KBB':
                 primary_diff = difference
@@ -499,10 +503,10 @@ def calculate_book_value_insights(before_data: Dict, after_data: Dict) -> Dict:
             elif primary_diff == 0 and category in ['rBook', 'J.D. Power', 'MMR']:
                 primary_diff = difference
                 insights['primary_source'] = category
-        
+
         insights['total_difference'] = primary_diff
         insights['best_improvement'] = {'category': best_category, 'amount': best_improvement}
-        
+
         # Create summary
         if primary_diff > 0:
             insights['summary'] = f"${primary_diff:,.0f} increase found by automation"
@@ -510,10 +514,10 @@ def calculate_book_value_insights(before_data: Dict, after_data: Dict) -> Dict:
             insights['summary'] = f"${abs(primary_diff):,.0f} decrease found by automation"
         else:
             insights['summary'] = "No value change detected"
-            
+
     except Exception as e:
         print(f"Error calculating book value insights: {e}")
-        
+
     return insights
 
 def calculate_time_saved(vehicle_count: int) -> tuple[int, str]:
@@ -521,12 +525,12 @@ def calculate_time_saved(vehicle_count: int) -> tuple[int, str]:
     total_minutes = vehicle_count * 11
     hours = total_minutes // 60
     minutes = total_minutes % 60
-    
+
     if hours > 0:
         formatted = f"{hours} hour{'s' if hours != 1 else ''} {minutes} minute{'s' if minutes != 1 else ''}"
     else:
         formatted = f"{minutes} minute{'s' if minutes != 1 else ''}"
-    
+
     return total_minutes, formatted
 
 def get_month_start() -> datetime:
@@ -562,16 +566,16 @@ async def login(user_data: UserLogin):
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         # Create proper JWT access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
             data={"sub": user.username}, expires_delta=access_token_expires
         )
-        
+
         # Return token with user info
         return Token(
-            access_token=access_token, 
+            access_token=access_token,
             token_type="bearer",
             user=UserResponse(
                 id=user.id,
@@ -627,7 +631,7 @@ async def create_user_by_admin(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Username already registered"
                 )
-            
+
             # Determine the role for the new user based on current user's role
             if current_user.role_enum == UserRole.SUPER_ADMIN:
                 # Super admin can create admins and users, default to user
@@ -640,7 +644,7 @@ async def create_user_by_admin(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Insufficient permissions to create users"
                 )
-            
+
             # For admin users, validate they can only assign stores they have access to
             if current_user.role_enum == UserRole.ADMIN:
                 admin_stores = current_user.get_store_ids()
@@ -650,7 +654,7 @@ async def create_user_by_admin(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=f"You don't have access to these stores: {', '.join(invalid_stores)}. You can only assign stores you have access to: {', '.join(admin_stores)}"
                     )
-            
+
             # Create new user
             new_user = User(
                 username=user_data.username,
@@ -659,11 +663,11 @@ async def create_user_by_admin(
             )
             new_user.set_password(user_data.password)
             new_user.set_store_ids(user_data.store_ids)
-            
+
             session.add(new_user)
             session.commit()
             session.refresh(new_user)
-            
+
             return UserManagementResponse(
                 success=True,
                 message=f"User {new_user.username} created successfully",
@@ -703,7 +707,7 @@ async def create_admin_by_superadmin(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Username already registered"
                 )
-            
+
             # Validate role
             try:
                 role_enum = UserRole(user_data.role.upper())
@@ -717,7 +721,7 @@ async def create_admin_by_superadmin(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid role. Valid roles: admin, user"
                 )
-            
+
             # Create new user
             new_user = User(
                 username=user_data.username,
@@ -725,17 +729,17 @@ async def create_admin_by_superadmin(
                 is_active=True
             )
             new_user.set_password(user_data.password)
-            
+
             # Set store IDs
             if user_data.store_ids:
                 new_user.set_store_ids(user_data.store_ids)
             elif user_data.store_id:  # Backward compatibility
                 new_user.set_store_ids([user_data.store_id])
-            
+
             session.add(new_user)
             session.commit()
             session.refresh(new_user)
-            
+
             return UserManagementResponse(
                 success=True,
                 message=f"Admin user {new_user.username} created successfully",
@@ -774,7 +778,7 @@ async def list_managed_users(current_user: User = Depends(get_current_admin_or_h
                 if current_user.store_id:
                     query = query.filter(User.store_id == current_user.store_id)
                 users = query.all()
-            
+
             return [
                 UserListItem(
                     id=user.id,
@@ -802,24 +806,24 @@ async def delete_user(
     try:
         with db_manager.get_session() as session:
             target_user = session.query(User).filter(User.id == user_id).first()
-            
+
             if not target_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found"
                 )
-            
+
             # Check permissions
             if not current_user.can_manage_user(target_user):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You don't have permission to delete this user"
                 )
-            
+
             username = target_user.username
             session.delete(target_user)
             session.commit()
-            
+
             return UserManagementResponse(
                 success=True,
                 message=f"User {username} deleted successfully"
@@ -841,23 +845,23 @@ async def toggle_user_active(
     try:
         with db_manager.get_session() as session:
             target_user = session.query(User).filter(User.id == user_id).first()
-            
+
             if not target_user:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found"
                 )
-            
+
             # Check permissions
             if not current_user.can_manage_user(target_user):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You don't have permission to modify this user"
                 )
-            
+
             target_user.is_active = not target_user.is_active
             session.commit()
-            
+
             status_text = "activated" if target_user.is_active else "deactivated"
             return UserManagementResponse(
                 success=True,
@@ -878,7 +882,7 @@ async def get_available_stores(current_user: User = Depends(get_current_user)):
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
             from sqlalchemy import distinct
-            
+
             if current_user.role_enum == UserRole.SUPER_ADMIN:
                 # Super admin can see all distinct environment_ids
                 store_ids = session.query(distinct(VehicleProcessingRecord.environment_id))\
@@ -892,7 +896,7 @@ async def get_available_stores(current_user: User = Depends(get_current_user)):
             else:
                 # Regular user sees only their assigned store
                 available_stores = current_user.get_store_ids()
-            
+
             return {
                 "success": True,
                 "stores": available_stores,
@@ -915,7 +919,7 @@ async def get_date_distribution(
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
             from sqlalchemy import func
-            
+
             # Get date distribution
             query = session.query(
                 func.date(VehicleProcessingRecord.processing_date).label('date'),
@@ -927,7 +931,7 @@ async def get_date_distribution(
             ).order_by(
                 func.date(VehicleProcessingRecord.processing_date).desc()
             ).all()
-            
+
             distribution = [
                 {
                     "date": date.strftime('%Y-%m-%d'),
@@ -936,7 +940,7 @@ async def get_date_distribution(
                 }
                 for date, count in dates
             ]
-            
+
             # Get min and max dates
             min_max_query = session.query(
                 func.min(VehicleProcessingRecord.processing_date),
@@ -944,7 +948,7 @@ async def get_date_distribution(
             )
             min_max_query = apply_store_filter(min_max_query, current_user, store_id)
             min_max = min_max_query.first()
-            
+
             return JSONResponse({
                 "success": True,
                 "date_distribution": distribution,
@@ -973,6 +977,11 @@ async def users_page(request: Request):
     """User management page - requires admin authentication via JavaScript"""
     return templates.TemplateResponse("users.html", {"request": request})
 
+@app.get("/cron", response_class=HTMLResponse)
+async def cron_management_page(request: Request):
+    """Cron management and onboarding page - requires super admin via JS"""
+    return templates.TemplateResponse("cron_management.html", {"request": request})
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     """Main dashboard page - requires authentication via JavaScript"""
@@ -992,33 +1001,33 @@ async def get_vehicles(
 ):
     """Get all vehicles with pagination and search"""
     print(f"Vehicles API called with start_date={start_date}, end_date={end_date}, search={search}")
-    
+
     # Handle null/empty string dates
     if start_date == "null" or start_date == "":
         start_date = None
     if end_date == "null" or end_date == "":
         end_date = None
-        
+
     try:
         search = search.strip()
-        
+
         # Get vehicles from database
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
-            
+
             query = session.query(VehicleProcessingRecord)
-            
+
             # Apply role-based store filtering
             print(f"DEBUG: User role={current_user.role}, store_ids={current_user.get_store_ids()}, selected_store_id={store_id}")
             query = apply_store_filter(query, current_user, store_id)
             print(f"DEBUG: Query after store filter applied")
-            
+
             # Apply search filter if provided
             if search:
                 query = query.filter(
                     VehicleProcessingRecord.stock_number.ilike(f'%{search}%')
                 )
-            
+
             # Apply date range filter if provided
             if start_date:
                 try:
@@ -1027,7 +1036,7 @@ async def get_vehicles(
                     print(f"Applied start date filter: {start_dt}")
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
-            
+
             if end_date:
                 try:
                     end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # Include entire end day
@@ -1035,7 +1044,7 @@ async def get_vehicles(
                     print(f"Applied end date filter: {end_dt}")
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
-            
+
             # Get total count
             total = query.count()
             print(f"DEBUG: Total vehicles after filtering: {total}")
@@ -1045,7 +1054,7 @@ async def get_vehicles(
                 VehicleProcessingRecord.processing_date.desc()
             ).offset((page - 1) * per_page).limit(per_page).all()
             print(f"DEBUG: Returned {len(vehicles)} vehicles for page {page}")
-            
+
             # Convert to response format
             vehicle_list = []
             for vehicle in vehicles:
@@ -1053,10 +1062,10 @@ async def get_vehicles(
                 display_name = vehicle.vehicle_name or f"Vehicle #{vehicle.stock_number}"
                 if vehicle.vin and not vehicle.vehicle_name:
                     display_name += f" (VIN: ...{vehicle.vin[-6:]})"
-                
+
                 # Format processing date
                 processing_date = vehicle.processing_date.strftime('%B %d, %Y at %I:%M %p') if vehicle.processing_date else 'Unknown'
-                
+
                 # Calculate status based on processing_status and success
                 processing_status = getattr(vehicle, 'processing_status', None)
                 # If processing_status is None, infer from processing_successful
@@ -1078,25 +1087,25 @@ async def get_vehicles(
                 else:
                     status = '<i class="fas fa-times-circle"></i> Processing Failed'
                     status_class = "danger"
-                
+
                 # Format features count
                 features_text = f"{vehicle.marked_features_count or 0} features marked"
-                
+
                 # Format description status
                 desc_status = '<i class="fas fa-edit"></i> Description Updated' if vehicle.description_updated else '<i class="fas fa-file-alt"></i> No Description'
                 desc_class = "success" if vehicle.description_updated else "muted"
-                
+
                 # Format special features
                 special_features = []
                 if vehicle.no_fear_certificate:
                     special_features.append('<i class="fas fa-award"></i> NO FEAR Certified')
-                
+
                 # Book Values processing status
                 book_values_status = '<i class="fas fa-chart-bar"></i> Book Values Processed' if vehicle.book_values_processed else '<i class="fas fa-chart-bar"></i> Book Values Pending'
-                
+
                 # Media Tab processing status
                 media_status = '<i class="fas fa-images"></i> Media Processed' if vehicle.media_tab_processed else '<i class="fas fa-images"></i> Media Pending'
-                
+
                 # Overall processing completeness
                 processing_steps = [
                     vehicle.processing_successful,
@@ -1106,7 +1115,7 @@ async def get_vehicles(
                 ]
                 completed_steps = sum(processing_steps)
                 total_steps = len(processing_steps)
-                
+
                 if completed_steps == total_steps:
                     processing_completeness = f'<i class="fas fa-check-circle"></i> Complete ({completed_steps}/{total_steps})'
                     processing_completeness_class = "success"
@@ -1116,7 +1125,7 @@ async def get_vehicles(
                 else:
                     processing_completeness = f'<i class="fas fa-exclamation-circle"></i> Partial ({completed_steps}/{total_steps})'
                     processing_completeness_class = "danger"
-                
+
                 vehicle_info = VehicleInfo(
                     id=vehicle.id,
                     name=display_name,
@@ -1150,7 +1159,7 @@ async def get_vehicles(
                     processing_completeness_class=processing_completeness_class
                 )
                 vehicle_list.append(vehicle_info)
-            
+
             pagination = PaginationInfo(
                 page=page,
                 per_page=per_page,
@@ -1159,19 +1168,19 @@ async def get_vehicles(
                 has_prev=page > 1,
                 has_next=page * per_page < total
             )
-            
+
             return VehiclesResponse(
                 success=True,
                 vehicles=vehicle_list,
                 pagination=pagination
             )
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/vehicle/{vehicle_id}", response_model=VehicleDetailResponse)
 async def get_vehicle_details(
-    vehicle_id: int, 
+    vehicle_id: int,
     store_id: Optional[str] = Query(None, description="Store ID for super admin filtering"),
     current_user: User = Depends(get_current_user)
 ):
@@ -1179,14 +1188,14 @@ async def get_vehicle_details(
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
-            
+
             query = session.query(VehicleProcessingRecord).filter(VehicleProcessingRecord.id == vehicle_id)
             query = apply_store_filter(query, current_user, store_id)
             vehicle = query.first()
-            
+
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
-            
+
             # Parse JSON fields safely
             import json
             starred_features = []
@@ -1206,7 +1215,7 @@ async def get_vehicle_details(
                             starred_features_summary += f" (+{len(feature_names)-5} more)"
                 except:
                     pass
-            
+
             feature_decisions = {}
             feature_decisions_summary = None
             if vehicle.feature_decisions:
@@ -1218,21 +1227,21 @@ async def get_vehicle_details(
                         feature_decisions_summary = f"AI analyzed {decision_count} features with recommendations"
                 except:
                     pass
-            
+
             errors_encountered = []
             if vehicle.errors_encountered:
                 try:
                     errors_encountered = json.loads(vehicle.errors_encountered)
                 except:
                     pass
-            
+
             media_totals_found = {}
             if vehicle.media_totals_found:
                 try:
                     media_totals_found = json.loads(vehicle.media_totals_found)
                 except:
                     pass
-            
+
             # Parse book values
             book_values_before = {}
             if vehicle.book_values_before_processing:
@@ -1240,21 +1249,21 @@ async def get_vehicle_details(
                     book_values_before = json.loads(vehicle.book_values_before_processing)
                 except:
                     pass
-            
+
             book_values_after = {}
             if vehicle.book_values_after_processing:
                 try:
                     book_values_after = json.loads(vehicle.book_values_after_processing)
                 except:
                     pass
-            
+
             ai_analysis_result = {}
             if vehicle.ai_analysis_result:
                 try:
                     ai_analysis_result = json.loads(vehicle.ai_analysis_result)
                 except:
                     pass
-            
+
             vehicle_detail = VehicleDetail(
                 id=vehicle.id,
                 stock_number=vehicle.stock_number,
@@ -1287,12 +1296,12 @@ async def get_vehicle_details(
                 screenshot_path=vehicle.screenshot_path,
                 no_build_data_found=getattr(vehicle, 'no_build_data_found', False)
             )
-            
+
             return VehicleDetailResponse(
                 success=True,
                 vehicle=vehicle_detail
             )
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1304,32 +1313,32 @@ async def delete_vehicle(vehicle_id: int, current_user: User = Depends(get_curre
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
-            
+
             # Find the vehicle record
             vehicle = session.query(VehicleProcessingRecord).filter(
                 VehicleProcessingRecord.id == vehicle_id,
                 VehicleProcessingRecord.environment_id == current_user.store_id
             ).first()
-            
+
             if not vehicle:
                 raise HTTPException(status_code=404, detail="Vehicle not found")
-            
+
             # Store vehicle info for response
             vehicle_info = {
                 "stock_number": vehicle.stock_number,
                 "vehicle_name": vehicle.vehicle_name
             }
-            
+
             # Delete the vehicle record
             session.delete(vehicle)
             session.commit()
-            
+
             return {
                 "success": True,
                 "message": f"Vehicle {vehicle_info['stock_number']} deleted successfully",
                 "deleted_vehicle": vehicle_info
             }
-            
+
     except HTTPException:
         raise
     except Exception as e:
@@ -1345,21 +1354,21 @@ async def get_statistics(
 ):
     """Get dashboard statistics"""
     print(f"Statistics API called with start_date={start_date}, end_date={end_date}, store_id={store_id}")
-    
+
     # Handle null/empty string dates
     if start_date == "null" or start_date == "":
         start_date = None
     if end_date == "null" or end_date == "":
         end_date = None
-        
+
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
-            
+
             # Base query with store filtering
             base_query = session.query(VehicleProcessingRecord)
             base_query = apply_store_filter(base_query, current_user, store_id)
-            
+
             # Apply date range filter if provided
             if start_date:
                 try:
@@ -1368,7 +1377,7 @@ async def get_statistics(
                     print(f"Statistics: Applied start date filter: {start_dt}")
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
-            
+
             if end_date:
                 try:
                     end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)  # Include entire end day
@@ -1376,34 +1385,34 @@ async def get_statistics(
                     print(f"Statistics: Applied end date filter: {end_dt}")
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
-            
+
             # Basic counts
             total_vehicles = base_query.count()
             successful_processing = base_query.filter_by(processing_successful=True).count()
             with_descriptions = base_query.filter_by(description_updated=True).count()
             with_no_fear = base_query.filter_by(no_fear_certificate=True).count()
-            
+
             # Calculate success rate
             success_rate = (successful_processing / total_vehicles * 100) if total_vehicles > 0 else 0
-            
+
             # Recent activity (last 7 days)
             seven_days_ago = datetime.utcnow() - timedelta(days=7)
             recent_vehicles = base_query.filter(
                 VehicleProcessingRecord.processing_date >= seven_days_ago
             ).count()
-            
+
             # Total features marked
             total_features = base_query.filter(
                 VehicleProcessingRecord.marked_features_count.isnot(None)
             ).with_entities(VehicleProcessingRecord.marked_features_count).all()
-            
+
             total_features_marked = sum(count[0] or 0 for count in total_features)
             avg_features_per_vehicle = (total_features_marked / total_vehicles) if total_vehicles > 0 else 0
-            
+
             # Calculate book value totals (Month-to-Date and Year-to-Date)
             month_start = get_month_start()
             year_start = get_year_start()
-            
+
             # Get vehicles with book values for MTD
             mtd_vehicles = base_query.filter(
                 VehicleProcessingRecord.processing_date >= month_start,
@@ -1411,7 +1420,7 @@ async def get_statistics(
                 VehicleProcessingRecord.book_values_before_processing.isnot(None),
                 VehicleProcessingRecord.book_values_after_processing.isnot(None)
             ).all()
-            
+
             # Get vehicles with book values for YTD
             ytd_vehicles = base_query.filter(
                 VehicleProcessingRecord.processing_date >= year_start,
@@ -1419,30 +1428,30 @@ async def get_statistics(
                 VehicleProcessingRecord.book_values_before_processing.isnot(None),
                 VehicleProcessingRecord.book_values_after_processing.isnot(None)
             ).all()
-            
+
             # Calculate total book value differences and insights
             total_book_value_mtd = 0.0
             mtd_insights = {'categories': {}, 'total_difference': 0.0, 'best_improvement': {'category': '', 'amount': 0.0}, 'primary_source': 'KBB', 'summary': 'No MTD data available'}
-            
+
             for vehicle in mtd_vehicles:
                 try:
                     before_data = json.loads(vehicle.book_values_before_processing) if vehicle.book_values_before_processing else {}
                     after_data = json.loads(vehicle.book_values_after_processing) if vehicle.book_values_after_processing else {}
-                    
+
                     # Calculate vehicle insights
                     vehicle_insights = calculate_book_value_insights(before_data, after_data)
                     difference = calculate_book_value_difference(before_data, after_data)
                     total_book_value_mtd += difference
-                    
+
                     # Aggregate insights
                     for category, data in vehicle_insights['categories'].items():
                         if category not in mtd_insights['categories']:
                             mtd_insights['categories'][category] = {'before': 0, 'after': 0, 'difference': 0, 'improvement': False}
                         mtd_insights['categories'][category]['difference'] += data['difference']
-                        
+
                 except (json.JSONDecodeError, TypeError):
                     continue
-            
+
             # Update MTD summary
             mtd_insights['total_difference'] = total_book_value_mtd
             if total_book_value_mtd > 0:
@@ -1451,29 +1460,29 @@ async def get_statistics(
                 mtd_insights['summary'] = f"${abs(total_book_value_mtd):,.0f} total decrease (MTD)"
             else:
                 mtd_insights['summary'] = "No MTD value changes detected"
-            
+
             total_book_value_ytd = 0.0
             ytd_insights = {'categories': {}, 'total_difference': 0.0, 'best_improvement': {'category': '', 'amount': 0.0}, 'primary_source': 'KBB', 'summary': 'No YTD data available'}
-            
+
             for vehicle in ytd_vehicles:
                 try:
                     before_data = json.loads(vehicle.book_values_before_processing) if vehicle.book_values_before_processing else {}
                     after_data = json.loads(vehicle.book_values_after_processing) if vehicle.book_values_after_processing else {}
-                    
+
                     # Calculate vehicle insights
                     vehicle_insights = calculate_book_value_insights(before_data, after_data)
                     difference = calculate_book_value_difference(before_data, after_data)
                     total_book_value_ytd += difference
-                    
+
                     # Aggregate insights
                     for category, data in vehicle_insights['categories'].items():
                         if category not in ytd_insights['categories']:
                             ytd_insights['categories'][category] = {'before': 0, 'after': 0, 'difference': 0, 'improvement': False}
                         ytd_insights['categories'][category]['difference'] += data['difference']
-                        
+
                 except (json.JSONDecodeError, TypeError):
                     continue
-            
+
             # Update YTD summary
             ytd_insights['total_difference'] = total_book_value_ytd
             if total_book_value_ytd > 0:
@@ -1482,10 +1491,10 @@ async def get_statistics(
                 ytd_insights['summary'] = f"${abs(total_book_value_ytd):,.0f} total decrease (YTD)"
             else:
                 ytd_insights['summary'] = "No YTD value changes detected"
-            
+
             # Calculate time saved (based on total successful vehicles)
             time_saved_minutes, time_saved_formatted = calculate_time_saved(successful_processing)
-            
+
             statistics = Statistics(
                 total_vehicles=total_vehicles,
                 successful_processing=successful_processing,
@@ -1503,12 +1512,12 @@ async def get_statistics(
                 time_saved_minutes=time_saved_minutes,
                 time_saved_formatted=time_saved_formatted
             )
-            
+
             return StatisticsResponse(
                 success=True,
                 statistics=statistics
             )
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1521,7 +1530,7 @@ async def debug_book_values(
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
-            
+
             # Get a few records with book values
             query = session.query(VehicleProcessingRecord)
             query = apply_store_filter(query, current_user, store_id)
@@ -1529,14 +1538,14 @@ async def debug_book_values(
                 VehicleProcessingRecord.book_values_processed == True,
                 VehicleProcessingRecord.book_values_before_processing.isnot(None)
             ).limit(5).all()
-            
+
             debug_data = []
             for vehicle in vehicles_with_book_values:
                 try:
                     before_data = json.loads(vehicle.book_values_before_processing) if vehicle.book_values_before_processing else {}
                     after_data = json.loads(vehicle.book_values_after_processing) if vehicle.book_values_after_processing else {}
                     difference = calculate_book_value_difference(before_data, after_data)
-                    
+
                     debug_data.append({
                         "stock_number": vehicle.stock_number,
                         "before_data": before_data,
@@ -1550,13 +1559,13 @@ async def debug_book_values(
                         "before_raw": vehicle.book_values_before_processing,
                         "after_raw": vehicle.book_values_after_processing
                     })
-            
+
             return {
                 "success": True,
                 "total_vehicles_with_book_values": len(vehicles_with_book_values),
                 "sample_data": debug_data
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1570,14 +1579,14 @@ async def get_recent_activity(
     try:
         with db_manager.get_session() as session:
             from database import VehicleProcessingRecord
-            
+
             query = session.query(VehicleProcessingRecord)
             query = apply_store_filter(query, current_user, store_id)
-            
+
             recent_vehicles = query.order_by(
                 VehicleProcessingRecord.processing_date.desc()
             ).limit(limit).all()
-            
+
             activity = []
             for vehicle in recent_vehicles:
                 # Time ago calculation
@@ -1595,25 +1604,25 @@ async def get_recent_activity(
                         time_ago = "Just now"
                 else:
                     time_ago = "Unknown time"
-                
+
                 # Activity description
                 action_parts = []
                 if vehicle.processing_successful:
                     action_parts.append("✅ processed")
                 else:
                     action_parts.append("❌ failed to process")
-                
+
                 if vehicle.description_updated:
                     action_parts.append("📝 updated description")
-                
+
                 if vehicle.marked_features_count and vehicle.marked_features_count > 0:
                     action_parts.append(f"⭐ marked {vehicle.marked_features_count} features")
-                
+
                 if vehicle.no_fear_certificate:
                     action_parts.append("🏆 NO FEAR certified")
-                
+
                 action_description = f"Vehicle #{vehicle.stock_number} " + ", ".join(action_parts)
-                
+
                 activity_item = ActivityItem(
                     id=vehicle.id,
                     stock_number=vehicle.stock_number,
@@ -1623,12 +1632,12 @@ async def get_recent_activity(
                     processing_date=vehicle.processing_date.isoformat() if vehicle.processing_date else None
                 )
                 activity.append(activity_item)
-            
+
             return ActivityResponse(
                 success=True,
                 activity=activity
             )
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1659,9 +1668,9 @@ if __name__ == '__main__':
     print("🔍 Search vehicles by stock number")
     print("📈 View processing statistics and recent activity")
     uvicorn.run(
-        "app:app", 
-        host="0.0.0.0", 
-        port=9000, 
+        "app:app",
+        host="0.0.0.0",
+        port=9000,
         reload=True,
         log_level="info"
     )

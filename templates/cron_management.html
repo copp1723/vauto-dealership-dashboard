@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dealership Onboarding - Executive Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        :root { --light-blue:#ACC2D8; --medium-blue:#7C9FC2; --dark-blue:#5788B3; --header-blue:#5788B3; --text-dark:#1e293b; --text-light:#475569; --border-color:#e2e8f0; }
+        .bg-header-blue { background-color: var(--header-blue); }
+        .text-dark-blue { color: var(--dark-blue); }
+        .modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background-color:rgba(0,0,0,0.5); z-index:50; }
+        .modal-overlay.active { display:flex; align-items:center; justify-content:center; }
+        .spinner { border:3px solid #f3f4f6; border-top:3px solid var(--dark-blue); border-radius:50%; width:40px; height:40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
+    </style>
+</head>
+<body>
+    <header class="bg-header-blue shadow-lg sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-xl font-semibold text-white"><i class="fas fa-plus-circle mr-2"></i>Dealership Onboarding</h1>
+                    <span class="ml-4 px-2 py-1 bg-red-600 text-white text-xs rounded-full">Super Admin Only</span>
+                </div>
+                <nav class="flex space-x-4">
+                    <a href="/" class="text-white hover:text-gray-200 transition-colors">Dashboard</a>
+                    <a href="/users" class="text-white hover:text-gray-200 transition-colors">Users</a>
+                    <button onclick="logout()" class="text-white hover:text-gray-200 transition-colors"><i class="fas fa-sign-out-alt mr-2"></i>Logout</button>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div class="flex items-center mb-4">
+                <i class="fas fa-handshake text-3xl text-green-600 mr-4"></i>
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800">Welcome to Dealership Onboarding</h2>
+                    <p class="text-gray-600">Quickly add new dealerships to the automation system without accessing Render directly</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-6 flex justify-between items-center">
+            <div class="flex space-x-4">
+                <button onclick="openOnboardModal()" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg font-semibold">
+                    <i class="fas fa-plus mr-2"></i>Add New Dealership
+                </button>
+            </div>
+        </div>
+
+        <div id="successMessage" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6" style="display: none;">
+            <div class="flex items-center">
+                <i class="fas fa-check-circle text-green-600 mr-3"></i>
+                <div>
+                    <h3 class="text-green-800 font-semibold">Dealership Successfully Onboarded!</h3>
+                    <p class="text-green-700 text-sm mt-1" id="successDetails"></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="errorMessage" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6" style="display: none;">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-red-600 mr-3"></i>
+                <div>
+                    <h3 class="text-red-800 font-semibold">Onboarding Failed</h3>
+                    <p class="text-red-700 text-sm mt-1" id="errorDetails"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="onboardModal" class="modal-overlay">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4">
+            <div class="px-6 py-4 border-b flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Quick Onboard Dealership</h3>
+                <button onclick="closeOnboardModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="onboardForm" class="p-6 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Dealership Name</label><input type="text" name="dealership_name" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Kunes Ford Delavan"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">VAuto Username</label><input type="text" name="vauto_username" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">VAuto Password</label><input type="password" name="vauto_password" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">AM Job Time</label><input type="text" name="am_time" value="5:58AM" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">PM Job Time</label><input type="text" name="pm_time" value="1:58PM" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                </div>
+                <hr class="my-4">
+                <h4 class="font-semibold text-gray-800 mb-2"><i class="fas fa-phone mr-2 text-green-600"></i>Phone Number Configuration</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Preferred Area Code (Optional)</label><input type="text" name="preferred_area_code" maxlength="3" pattern="[0-9]{3}" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., 312"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Phone Number Friendly Name</label><input type="text" name="phone_friendly_name" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="e.g., Kunes Ford 2FA"></div>
+                </div>
+                <hr class="my-4">
+                <h4 class="font-semibold text-gray-800 mb-2">Dashboard User Details</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Username</label><input type="text" name="dashboard_username" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" name="dashboard_password" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" name="dashboard_email" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">First Name</label><input type="text" name="dashboard_first_name" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label><input type="text" name="dashboard_last_name" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                </div>
+                <div class="flex justify-end space-x-3 pt-4">
+                    <button type="button" onclick="closeOnboardModal()" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">Onboard Dealership</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="cronModal" class="modal-overlay">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+            <div class="px-6 py-4 border-b flex justify-between items-center">
+                <h3 class="text-xl font-semibold">Create Custom Cron Job</h3>
+                <button onclick="closeCronModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="cronForm" class="p-6 space-y-4">
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Job Name</label><input type="text" name="name" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Schedule (Cron Expression)</label><input type="text" name="schedule" value="0 19 * * *" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"><p class="text-xs text-gray-500 mt-1">Default: 7:00 PM UTC daily</p></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Repository URL</label><input type="url" name="repo_url" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://github.com/..."></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Branch</label><input type="text" name="branch" value="main" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Username</label><input type="text" name="username" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Password</label><input type="password" name="password" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></div>
+                <div><label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label><input type="tel" name="phone_number" required class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="+1234567890"></div>
+                <div class="flex justify-end space-x-3"><button type="button" onclick="closeCronModal" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button><button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Create Job</button></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function getAuthHeaders() {
+            const token = localStorage.getItem('token');
+            return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            const token = localStorage.getItem('token');
+            if (!token) { window.location.href = '/login'; return; }
+            try {
+                const response = await fetch('/api/me', { headers: getAuthHeaders() });
+                if (!response.ok) { window.location.href = '/login'; return; }
+                const user = await response.json();
+                if (user.role !== 'super_admin') { alert('Access denied. Super admin only.'); window.location.href = '/'; return; }
+            } catch (e) { console.error('Auth check failed', e); window.location.href = '/login'; }
+        });
+
+        function openOnboardModal() { document.getElementById('onboardModal').classList.add('active'); }
+        function closeOnboardModal() { document.getElementById('onboardModal').classList.remove('active'); document.getElementById('onboardForm').reset(); }
+        function openCronModal() { document.getElementById('cronModal').classList.add('active'); }
+        function closeCronModal() { document.getElementById('cronModal').classList.remove('active'); document.getElementById('cronForm').reset(); }
+
+        document.getElementById('onboardForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Onboarding...';
+            submitBtn.disabled = true;
+            document.getElementById('successMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            try {
+                const response = await fetch('/api/cron/onboard', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
+                if (!response.ok) { const error = await response.json(); throw new Error(error.detail || 'Failed to onboard dealership'); }
+                document.getElementById('successDetails').textContent = `${data.dealership_name} has been successfully deployed with automation jobs scheduled for ${data.am_time} and ${data.pm_time}. A phone number has been purchased for 2FA authentication.`;
+                document.getElementById('successMessage').style.display = 'block';
+                closeOnboardModal();
+                document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth' });
+            } catch (error) {
+                document.getElementById('errorDetails').textContent = error.message;
+                document.getElementById('errorMessage').style.display = 'block';
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
+
+        document.getElementById('cronForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            data.start_command = 'CMD';
+            try {
+                const response = await fetch('/api/cron/jobs', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(data) });
+                if (!response.ok) { const error = await response.json(); throw new Error(error.detail || 'Failed to create cron job'); }
+                alert('Cron job created successfully!');
+                closeCronModal();
+            } catch (error) { alert(`Failed to create cron job: ${error.message}`); }
+        });
+
+        function logout() { localStorage.removeItem('token'); localStorage.removeItem('refresh_token'); window.location.href = '/login'; }
+    </script>
+</body>
+</html>
+

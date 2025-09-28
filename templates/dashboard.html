@@ -466,7 +466,7 @@
     </div>
 
     <!-- Include the full dashboard.js for complete functionality -->
-    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/dashboard.js?v=20250928-1"></script>
     <script>
         // Helper function for authenticated fetch specific to Tailwind UI
         function authenticatedFetch(url, options = {}) {
@@ -853,15 +853,15 @@
         const vehicleModal = document.getElementById('vehicleModal');
         const closeModalButtons = document.querySelectorAll('[data-modal-close]');
 
-        const closeModal = () => vehicleModal.classList.add('hidden');
+        const tailwindCloseModal = () => vehicleModal.classList.add('hidden');
 
         closeModalButtons.forEach(button => {
-            button.addEventListener('click', closeModal);
+            button.addEventListener('click', tailwindCloseModal);
         });
 
         vehicleModal.addEventListener('click', (event) => {
             if (event.target === vehicleModal) {
-                closeModal();
+                tailwindCloseModal();
             }
         });
 

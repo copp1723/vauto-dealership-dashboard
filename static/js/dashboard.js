@@ -22,7 +22,7 @@ function authenticatedFetch(url, options = {}) {
         window.location.href = '/login';
         return;
     }
-    
+
     const authOptions = {
         ...options,
         headers: {
@@ -31,7 +31,7 @@ function authenticatedFetch(url, options = {}) {
             'Content-Type': 'application/json'
         }
     };
-    
+
     return fetch(url, authOptions).then(response => {
         if (response.status === 401) {
             // Token expired or invalid - logout
@@ -42,6 +42,18 @@ function authenticatedFetch(url, options = {}) {
         return response;
     });
 }
+// Global helper to close the vehicle details modal (used by template onclick)
+function closeModal() {
+    try {
+        if (window.dashboard && typeof window.dashboard.closeModal === 'function') {
+            window.dashboard.closeModal();
+            return;
+        }
+        const m = document.getElementById('vehicle-modal');
+        if (m) m.classList.add('hidden');
+    } catch (e) { /* no-op */ }
+}
+
 
 // Global Date Filter Manager
 class GlobalDateFilter {
@@ -57,7 +69,7 @@ class GlobalDateFilter {
         if (dropdown) {
             dropdown.addEventListener('change', (e) => this.handleFilterChange(e.target.value));
         }
-        
+
         this.updateRangeDisplay();
     }
 
@@ -75,12 +87,12 @@ class GlobalDateFilter {
     showCustomDateModal() {
         const modal = document.getElementById('date-range-modal');
         modal.style.display = 'flex';
-        
+
         // Set default dates if not already set
         const today = new Date();
         const startDate = document.getElementById('start-date');
         const endDate = document.getElementById('end-date');
-        
+
         if (!this.customStartDate) {
             const thirtyDaysAgo = new Date(today);
             thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -88,7 +100,7 @@ class GlobalDateFilter {
         } else {
             startDate.value = this.customStartDate;
         }
-        
+
         if (!this.customEndDate) {
             endDate.value = today.toISOString().split('T')[0];
         } else {
@@ -100,7 +112,7 @@ class GlobalDateFilter {
         const today = new Date();
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         const startOfYear = new Date(today.getFullYear(), 0, 1);
-        
+
         switch (this.currentFilter) {
             case 'mtd':
                 return {
@@ -176,13 +188,13 @@ class VehicleDashboard {
         this.statistics = {};
         this.recentActivity = [];
         this.currentVehicle = null;
-        
+
         // Get initial date range from global filter if available
         if (window.globalDateFilter) {
             this.currentDateRange = window.globalDateFilter.getDateRange();
             console.log('Dashboard initialized with date range:', this.currentDateRange);
         }
-        
+
         this.initializeEventListeners();
         // Don't load initial data here - wait for store selector to be set up
     }
@@ -243,11 +255,14 @@ class VehicleDashboard {
         // Book value period dropdown removed - always use MTD data
 
         // Modal close on background click
-        document.getElementById('vehicle-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'vehicle-modal') {
-                this.closeModal();
-            }
-        });
+        const modalEl = document.getElementById('vehicle-modal');
+        if (modalEl) {
+            modalEl.addEventListener('click', (e) => {
+                if (e.target.id === 'vehicle-modal') {
+                    this.closeModal();
+                }
+            });
+        }
 
         // Mobile sidebar functionality
         this.initializeMobileSidebar();
@@ -276,26 +291,26 @@ class VehicleDashboard {
         try {
             this.showLoadingState();
             this.showSidebarLoading();
-            
+
             // Load statistics and vehicles separately to handle errors individually
             const statisticsPromise = this.loadStatistics().catch(error => {
                 console.error('Error loading statistics:', error);
                 this.showToast('Failed to load statistics', 'error');
                 return null;
             });
-            
+
             const vehiclesPromise = this.loadVehicles().catch(error => {
                 console.error('Error loading vehicles:', error);
                 this.showErrorState('Failed to load vehicles');
                 return null;
             });
-            
+
             // Wait for both to complete
             const [statisticsResult, vehiclesResult] = await Promise.all([
                 statisticsPromise,
                 vehiclesPromise
             ]);
-            
+
             // Only hide loading and show success if at least one succeeded
             if (statisticsResult !== null || vehiclesResult !== null) {
                 this.hideLoadingState();
@@ -319,31 +334,31 @@ class VehicleDashboard {
     async loadStatistics() {
         // Show loading state for statistics
         this.showStatsLoading();
-        
+
         try {
             const params = new URLSearchParams();
-            
+
             // Add date range parameters if available
             if (this.currentDateRange && this.currentDateRange.start && this.currentDateRange.end) {
                 params.append('start_date', this.currentDateRange.start);
                 params.append('end_date', this.currentDateRange.end);
                 console.log('Loading statistics with date filter:', this.currentDateRange.start, 'to', this.currentDateRange.end);
             }
-            
+
             // Add selected store ID for super admins
             if (window.selectedStoreId) {
                 params.append('store_id', window.selectedStoreId);
                 console.log('Added store filter to statistics:', window.selectedStoreId);
             }
-            
+
             const queryString = params.toString();
             const url = queryString ? `/api/statistics?${queryString}` : '/api/statistics';
             console.log('Loading statistics with URL:', url);
             console.log('Current selectedStoreId:', window.selectedStoreId);
-            
+
             const response = await authenticatedFetch(url);
             const data = await response.json();
-            
+
             if (data.success) {
                 this.statistics = data.statistics;
                 console.log('Statistics loaded for date range:', this.currentDateRange);
@@ -366,7 +381,7 @@ class VehicleDashboard {
 
     updateStatisticsDisplay() {
         const stats = this.statistics;
-        
+
         // Safely update elements if they exist
         const updateElement = (id, value) => {
             const element = document.getElementById(id);
@@ -374,14 +389,14 @@ class VehicleDashboard {
                 element.textContent = value;
             }
         };
-        
+
         updateElement('total-vehicles', formatExecutiveNumber(stats.total_vehicles || 0));
         updateElement('descriptions-updated', formatExecutiveNumber(stats.descriptions_updated || 0));
         updateElement('total-features', formatExecutiveNumber(stats.total_features_marked || 0));
-        
+
         // Update new metrics
         this.updateBookValueDisplay();
-        
+
         // Update time saved with better formatting
         updateElement('time-saved', stats.time_saved_formatted || '0 MINUTES');
         // vehicles-processed element is commented out in HTML
@@ -390,11 +405,11 @@ class VehicleDashboard {
 
     updateBookValueDisplay() {
         const stats = this.statistics;
-        
+
         // Always use MTD (Month to Date) data
         const amount = stats.total_book_value_mtd || 0;
         const insights = stats.book_value_insights_mtd || {};
-        
+
         // Format as currency
         const formatted = new Intl.NumberFormat('en-US', {
             style: 'currency',
@@ -402,59 +417,59 @@ class VehicleDashboard {
             minimumFractionDigits: 0,
             maximumFractionDigits: 0
         }).format(Math.abs(amount));
-        
+
         // Add + or - sign based on the value
         const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
         // Store current insights for sidebar
         this.currentBookValueInsights = insights;
         this.currentBookValuePeriod = 'mtd'; // Always use MTD
         this.currentBookValueAmount = amount;
-        
+
         // Always update sidebar since it's always visible
         this.updateSidebarContent();
     }
-    
+
     updateSidebarContent() {
         if (!this.currentBookValueInsights) {
             return;
         }
-        
+
         // Hide loading overlay
         this.hideSidebarLoading();
-        
+
         const insights = this.currentBookValueInsights;
         const period = this.currentBookValuePeriod;
         const amount = this.currentBookValueAmount;
-        
+
         // Sidebar subtitle is now static "Recent Activity" - no need to update
-        
+
         // Populate cards
         const cardsContainer = document.getElementById('book-value-cards-container');
         const emptyState = document.getElementById('sidebar-empty');
-        
+
         cardsContainer.innerHTML = '';
-        
+
         const categories = insights.categories || {};
         const categoryKeys = Object.keys(categories);
-        
+
         // Filter out categories with zero difference
         const nonZeroCategories = categoryKeys.filter(category => {
             const data = categories[category];
             const difference = data.difference || 0;
             return difference !== 0;
         });
-        
+
         if (nonZeroCategories.length === 0) {
             cardsContainer.style.display = 'none';
             emptyState.style.display = 'block';
         } else {
             cardsContainer.style.display = 'block';
             emptyState.style.display = 'none';
-            
+
             nonZeroCategories.forEach(category => {
                 const data = categories[category];
                 const difference = data.difference || 0;
-                
+
                 // Format currency values
                 const formatCurrency = (amount) => {
                     return new Intl.NumberFormat('en-US', {
@@ -464,7 +479,7 @@ class VehicleDashboard {
                         maximumFractionDigits: 0
                     }).format(Math.abs(amount));
                 };
-                
+
                 // Determine styling class
                 let cardClass = 'neutral';
                 let amountClass = 'neutral';
@@ -475,9 +490,9 @@ class VehicleDashboard {
                     cardClass = 'negative';
                     amountClass = 'negative';
                 }
-                
+
                 const changeFormatted = (difference > 0 ? '+' : '') + formatCurrency(difference);
-                
+
                 const card = document.createElement('div');
                 card.className = `book-value-card ${cardClass}`;
                 card.innerHTML = `
@@ -486,7 +501,7 @@ class VehicleDashboard {
                         <div class="card-amount ${amountClass}">${changeFormatted}</div>
                     </div>
                 `;
-                
+
                 cardsContainer.appendChild(card);
             });
         }
@@ -495,18 +510,18 @@ class VehicleDashboard {
     handleDateFilterChange(dateRange) {
         this.currentDateRange = dateRange;
         console.log('Dashboard handleDateFilterChange called with:', dateRange);
-        
+
         // Refresh all data with new date range
         console.log('Refreshing statistics and vehicles with new date range...');
         this.loadStatistics();
         this.loadVehicles();
     }
-    
+
     initializeMobileSidebar() {
         const sidebarToggle = document.getElementById('sidebar-toggle');
         const sidebarOverlay = document.getElementById('sidebar-overlay');
         const sidebar = document.getElementById('book-value-sidebar');
-        
+
         // Show/hide toggle button based on screen size
         const updateToggleVisibility = () => {
             if (window.innerWidth <= 1024) {
@@ -517,28 +532,28 @@ class VehicleDashboard {
                 sidebarOverlay.classList.remove('active');
             }
         };
-        
+
         // Initial check
         updateToggleVisibility();
-        
+
         // Listen for window resize
         window.addEventListener('resize', updateToggleVisibility);
-        
+
         // Toggle sidebar on button click
         sidebarToggle.addEventListener('click', () => {
             this.toggleMobileSidebar();
         });
-        
+
         // Close sidebar when clicking overlay
         sidebarOverlay.addEventListener('click', () => {
             this.closeMobileSidebar();
         });
     }
-    
+
     toggleMobileSidebar() {
         const sidebar = document.getElementById('book-value-sidebar');
         const overlay = document.getElementById('sidebar-overlay');
-        
+
         if (sidebar.classList.contains('mobile-open')) {
             this.closeMobileSidebar();
         } else {
@@ -546,18 +561,18 @@ class VehicleDashboard {
             overlay.classList.add('active');
         }
     }
-    
+
     closeMobileSidebar() {
         const sidebar = document.getElementById('book-value-sidebar');
         const overlay = document.getElementById('sidebar-overlay');
-        
+
         sidebar.classList.remove('mobile-open');
         overlay.classList.remove('active');
     }
-    
+
     getVehicleCountForPeriod(period) {
         // Always use MTD calculation since period selection was removed
-        // This is a simplified count - in a real implementation, 
+        // This is a simplified count - in a real implementation,
         // you might want to add this data to the statistics response
         const stats = this.statistics;
         // For now, use a portion of successful processing as an estimate
@@ -572,26 +587,26 @@ class VehicleDashboard {
                 per_page: this.perPage,
                 search: this.currentSearch
             });
-            
+
             // Add date range parameters if available
             if (this.currentDateRange && this.currentDateRange.start && this.currentDateRange.end) {
                 params.append('start_date', this.currentDateRange.start);
                 params.append('end_date', this.currentDateRange.end);
                 console.log('Added date filters:', this.currentDateRange.start, 'to', this.currentDateRange.end);
             }
-            
+
             // Add selected store ID for super admins
             if (window.selectedStoreId) {
                 params.append('store_id', window.selectedStoreId);
                 console.log('Added store filter:', window.selectedStoreId);
             }
-            
+
             const url = `/api/vehicles?${params}`;
             console.log('Loading vehicles with URL:', url);
 
             const response = await authenticatedFetch(url);
             const data = await response.json();
-            
+
             if (data.success) {
                 this.vehicles = data.vehicles;
                 console.log(`Loaded ${data.vehicles.length} vehicles for date range:`, this.currentDateRange);
@@ -663,7 +678,7 @@ class VehicleDashboard {
         }
 
         vehiclesGrid.innerHTML = html;
-        
+
         // Add fade-in animation to vehicle cards
         requestAnimationFrame(() => {
             const cards = vehiclesGrid.querySelectorAll('.vehicle-card');
@@ -796,13 +811,13 @@ class VehicleDashboard {
                 if (this.statusFilter === 'success' && !vehicle.processing_successful) return false;
                 if (this.statusFilter === 'failed' && vehicle.processing_successful) return false;
             }
-            
+
             // Description filter
             if (this.descriptionFilter) {
                 if (this.descriptionFilter === 'updated' && !vehicle.description_updated) return false;
                 if (this.descriptionFilter === 'none' && vehicle.description_updated) return false;
             }
-            
+
             return true;
         });
     }
@@ -832,12 +847,12 @@ class VehicleDashboard {
         const resultsCount = document.getElementById('results-count');
         const start = (pagination.page - 1) * pagination.per_page + 1;
         const end = Math.min(pagination.page * pagination.per_page, pagination.total);
-        
+
         let filterInfo = '';
         if (this.currentDateRange) {
             filterInfo = ` (${this.currentDateRange.label})`;
         }
-        
+
         if (pagination.total === 0) {
             resultsCount.textContent = `No results found${filterInfo}`;
         } else {
@@ -848,7 +863,7 @@ class VehicleDashboard {
     updateSearchClearButton() {
         const searchClear = document.getElementById('search-clear');
         const searchInput = document.getElementById('search');
-        
+
         if (searchInput.value.trim()) {
             searchClear.style.display = 'block';
         } else {
@@ -860,7 +875,7 @@ class VehicleDashboard {
         try {
             const response = await authenticatedFetch(`/api/vehicle/${vehicleId}`);
             const data = await response.json();
-            
+
             if (data.success) {
                 this.displayVehicleModal(data.vehicle);
             } else {
@@ -887,7 +902,7 @@ class VehicleDashboard {
         if (deleteBtn) {
             const isProcessing = vehicle.processing_status === 'processing';
             const isPending = vehicle.processing_status === 'pending';
-            
+
             // Only show delete button for completed vehicles (successful or failed, but not processing/pending)
             if (!isProcessing && !isPending) {
                 deleteBtn.style.display = 'inline-block';
@@ -1017,7 +1032,7 @@ class VehicleDashboard {
                 </div>
             ` : ''}
 
-            ${(vehicle.book_values_before_processing && Object.keys(vehicle.book_values_before_processing).length > 0) || 
+            ${(vehicle.book_values_before_processing && Object.keys(vehicle.book_values_before_processing).length > 0) ||
               (vehicle.book_values_after_processing && Object.keys(vehicle.book_values_after_processing).length > 0) ? `
                 <div class="modal-section">
                     <h4><i class="fas fa-calculator"></i> Book Values</h4>
@@ -1062,10 +1077,10 @@ class VehicleDashboard {
     closeModal() {
         const modal = document.getElementById('vehicle-modal');
         const deleteBtn = document.getElementById('delete-vehicle-btn');
-        
+
         modal.style.display = 'none';
         document.body.style.overflow = 'auto';
-        
+
         // Clear current vehicle and hide delete button
         this.currentVehicle = null;
         if (deleteBtn) {
@@ -1076,7 +1091,7 @@ class VehicleDashboard {
     changePage(direction) {
         this.currentPage += direction;
         this.loadVehicles();
-        
+
         // Scroll to top of vehicles section
         document.querySelector('.vehicles-section').scrollIntoView({ behavior: 'smooth' });
     }
@@ -1092,10 +1107,10 @@ class VehicleDashboard {
     async refreshData() {
         const refreshButton = document.querySelector('.btn-outline');
         const originalContent = refreshButton.innerHTML;
-        
+
         refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
         refreshButton.disabled = true;
-        
+
         try {
             await this.loadInitialData();
             this.showToast('Data refreshed successfully', 'success');
@@ -1111,9 +1126,9 @@ class VehicleDashboard {
         const loadingState = document.getElementById('loading-state');
         const vehiclesGrid = document.getElementById('vehicles-grid');
         const errorState = document.getElementById('error-state');
-        
+
         errorState.style.display = 'none';
-        
+
         // If vehicles grid is empty, show skeleton loaders
         if (!vehiclesGrid.innerHTML.trim() || vehiclesGrid.querySelector('.no-results')) {
             loadingState.style.display = 'block';
@@ -1123,7 +1138,7 @@ class VehicleDashboard {
             loadingState.style.display = 'none';
             vehiclesGrid.style.opacity = '0.7';
             vehiclesGrid.style.pointerEvents = 'none';
-            
+
             // Add a subtle loading indicator
             if (!document.querySelector('.vehicles-loading-indicator')) {
                 const loadingIndicator = document.createElement('div');
@@ -1139,20 +1154,20 @@ class VehicleDashboard {
         const loadingState = document.getElementById('loading-state');
         const vehiclesGrid = document.getElementById('vehicles-grid');
         const errorState = document.getElementById('error-state');
-        
+
         loadingState.style.display = 'none';
         errorState.style.display = 'none';
         vehiclesGrid.style.display = 'grid';
         vehiclesGrid.style.opacity = '1';
         vehiclesGrid.style.pointerEvents = 'auto';
         vehiclesGrid.style.position = '';
-        
+
         // Remove loading indicator if exists
         const loadingIndicator = document.querySelector('.vehicles-loading-indicator');
         if (loadingIndicator) {
             loadingIndicator.remove();
         }
-        
+
         // Add fade-in animation to new content
         const vehicleCards = vehiclesGrid.querySelectorAll('.vehicle-card');
         vehicleCards.forEach((card, index) => {
@@ -1171,40 +1186,40 @@ class VehicleDashboard {
         document.getElementById('error-message').textContent = message;
         document.getElementById('vehicles-grid').style.display = 'none';
     }
-    
+
     showStatsLoading() {
         const statsLoading = document.getElementById('stats-loading');
         const sidebarLoading = document.getElementById('sidebar-loading');
-        
+
         if (statsLoading) {
             statsLoading.classList.add('active');
         }
-        
+
         if (sidebarLoading) {
             sidebarLoading.classList.add('active');
         }
     }
-    
+
     hideStatsLoading() {
         const statsLoading = document.getElementById('stats-loading');
         const sidebarLoading = document.getElementById('sidebar-loading');
-        
+
         if (statsLoading) {
             statsLoading.classList.remove('active');
         }
-        
+
         if (sidebarLoading) {
             sidebarLoading.classList.remove('active');
         }
     }
-    
+
     showSidebarLoading() {
         const sidebarLoading = document.getElementById('sidebar-loading');
         if (sidebarLoading) {
             sidebarLoading.classList.add('active');
         }
     }
-    
+
     hideSidebarLoading() {
         const sidebarLoading = document.getElementById('sidebar-loading');
         if (sidebarLoading) {
@@ -1215,22 +1230,22 @@ class VehicleDashboard {
     showToast(message, type = 'info') {
         const toastContainer = document.getElementById('toast-container');
         const toast = document.createElement('div');
-        
+
         toast.className = `toast ${type}`;
         toast.innerHTML = `
             <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
             <span>${this.escapeHtml(message)}</span>
         `;
-        
+
         toastContainer.appendChild(toast);
-        
+
         // Auto-remove toast after 5 seconds
         setTimeout(() => {
             if (toast.parentNode) {
                 toast.parentNode.removeChild(toast);
             }
         }, 5000);
-        
+
         // Click to dismiss
         toast.addEventListener('click', () => {
             if (toast.parentNode) {
@@ -1262,7 +1277,7 @@ class VehicleDashboard {
     renderBookValues(bookValuesBefore, bookValuesAfter) {
         const hasBeforeValues = bookValuesBefore && Object.keys(bookValuesBefore).length > 0;
         const hasAfterValues = bookValuesAfter && Object.keys(bookValuesAfter).length > 0;
-        
+
         if (!hasBeforeValues && !hasAfterValues) {
             return '<div class="book-values-empty">No book value data available</div>';
         }
@@ -1292,7 +1307,7 @@ class VehicleDashboard {
                 const beforeNum = this.parseBookValue(beforeValue);
                 const afterNum = this.parseBookValue(afterValue);
                 const difference = (beforeNum !== null && afterNum !== null) ? afterNum - beforeNum : null;
-                
+
                 html += `
                     <div class="book-value-row">
                         <div class="book-value-key">${this.escapeHtml(key)}</div>
@@ -1313,7 +1328,7 @@ class VehicleDashboard {
             // Show only the available values
             const values = hasBeforeValues ? bookValuesBefore : bookValuesAfter;
             const title = hasBeforeValues ? 'Before Processing' : 'After Processing';
-            
+
             html += `
                 <div class="book-values-single">
                     <div class="book-values-title">${title}</div>
@@ -1407,7 +1422,7 @@ class VehicleDashboard {
             window.location.href = '/login';
             return;
         }
-        
+
         const authOptions = {
             ...options,
             headers: {
@@ -1416,7 +1431,7 @@ class VehicleDashboard {
                 'Content-Type': 'application/json'
             }
         };
-        
+
         return fetch(url, authOptions).then(response => {
             if (response.status === 401 || response.status === 403) {
                 localStorage.removeItem('token');
@@ -1477,24 +1492,24 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = '/login';
         return;
     }
-    
+
     // Initialize global date filter BEFORE dashboard
     window.globalDateFilter = new GlobalDateFilter();
-    
+
     // Now initialize dashboard - it will use the date filter
     dashboard = new VehicleDashboard();
     window.dashboard = dashboard; // Make dashboard accessible globally
-    
+
     // Run debug to see date distribution
     debugDateDistribution();
-    
+
     // Add CSS for modal sections and processing status
     const style = document.createElement('style');
     style.textContent = `
         .modal-section {
             margin-bottom: 25px;
         }
-        
+
         .modal-section h4 {
             font-size: 16px;
             font-weight: 600;
@@ -1504,54 +1519,54 @@ document.addEventListener('DOMContentLoaded', () => {
             align-items: center;
             gap: 8px;
         }
-        
+
         .modal-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
         }
-        
+
         .modal-field {
             display: flex;
             flex-direction: column;
             gap: 5px;
         }
-        
+
         .modal-field label {
             font-size: 12px;
             font-weight: 600;
             color: #718096;
             text-transform: uppercase;
         }
-        
+
         .modal-field value {
             font-size: 14px;
             color: #2d3748;
             font-weight: 500;
         }
-        
+
         .modal-field .status.success {
             color: #38a169;
         }
-        
+
         .modal-field .status.danger {
             color: #e53e3e;
         }
-        
+
         .modal-field .status.muted {
             color: #a0aec0;
         }
-        
+
         .modal-field .status.warning {
             color: #d97706;
         }
-        
+
         .feature-list, .error-list {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
-        
+
         .feature-item, .error-item {
             display: flex;
             align-items: center;
@@ -1561,15 +1576,15 @@ document.addEventListener('DOMContentLoaded', () => {
             border-radius: 6px;
             font-size: 14px;
         }
-        
+
         .feature-item i {
             color: #ed8936;
         }
-        
+
         .error-item i {
             color: #e53e3e;
         }
-        
+
         .description-content {
             background: #f7fafc;
             padding: 15px;
@@ -1578,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             line-height: 1.6;
             color: #4a5568;
         }
-        
+
         .certification-badge {
             display: flex;
             align-items: center;
@@ -1590,7 +1605,7 @@ document.addEventListener('DOMContentLoaded', () => {
             font-weight: 600;
             margin-bottom: 10px;
         }
-        
+
         .certification-text {
             background: #f7fafc;
             padding: 15px;
@@ -1598,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
             font-size: 14px;
             color: #4a5568;
         }
-        
+
         .no-results {
             grid-column: 1 / -1;
             background: white;
@@ -1607,25 +1622,25 @@ document.addEventListener('DOMContentLoaded', () => {
             text-align: center;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
         }
-        
+
         /* Processing status styles */
         .vehicle-card.processing {
             border: 2px solid #f59e0b;
             box-shadow: 0 8px 30px rgba(245, 158, 11, 0.2);
             animation: processingPulse 2s infinite;
         }
-        
+
         @keyframes processingPulse {
             0%, 100% { box-shadow: 0 8px 30px rgba(245, 158, 11, 0.2); }
             50% { box-shadow: 0 8px 30px rgba(245, 158, 11, 0.4); }
         }
-        
+
         .processing-indicator {
             display: inline-block;
             margin-left: 8px;
             color: #f59e0b;
         }
-        
+
         .no-build-data-warning {
             background: rgba(245, 158, 11, 0.1);
             border: 1px solid rgba(245, 158, 11, 0.3);
@@ -1639,7 +1654,7 @@ document.addEventListener('DOMContentLoaded', () => {
             color: #92400e;
             font-weight: 500;
         }
-        
+
         .no-build-data-warning i {
             color: #f59e0b;
         }
@@ -1685,17 +1700,17 @@ document.addEventListener('DOMContentLoaded', () => {
             font-size: 14px;
             margin-bottom: 6px;
         }
-        
+
         .vehicle-status.warning {
             background: #fef3c7;
             color: #92400e;
         }
-        
+
         .vehicle-status.muted {
             background: #f3f4f6;
             color: #6b7280;
         }
-        
+
         .modal-field .status.warning {
             color: #d97706;
         }
@@ -1709,23 +1724,23 @@ function deleteVehicle() {
         dashboard.showToast('No vehicle selected for deletion', 'error');
         return;
     }
-    
+
     const vehicle = dashboard.currentVehicle;
     const vehicleName = vehicle.vehicle_name || `Vehicle #${vehicle.stock_number}`;
-    
+
     // Check if vehicle is in a state that allows deletion
     const isProcessing = vehicle.processing_status === 'processing';
     const isPending = vehicle.processing_status === 'pending';
-    
+
     if (isProcessing || isPending) {
         dashboard.showToast('Cannot delete vehicles that are currently processing or pending', 'error');
         return;
     }
-    
+
     // Create a more detailed confirmation message
     const statusText = vehicle.processing_successful ? 'Successfully Processed' : 'Failed Processing';
     const confirmMessage = `Are you sure you want to delete ${vehicleName}?\n\nStatus: ${statusText}\nProcessing Date: ${vehicle.processing_date || 'N/A'}\n\nWARNING: This action cannot be undone!`;
-    
+
     if (confirm(confirmMessage)) {
         dashboard.deleteCurrentVehicle();
     }
