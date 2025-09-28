@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Book Values</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="p-8">
+    <h1 class="text-2xl font-bold mb-6">Book Values Test</h1>
+    
+    <div class="mb-4">
+        <button onclick="testBookValues()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Test Book Values
+        </button>
+    </div>
+    
+    <div id="results" class="mt-6"></div>
+
+    <script>
+        // Copy the formatCurrency function from dashboard.js
+        function formatCurrency(value) {
+            // Handle null, undefined, or invalid values
+            if (value === null || value === undefined || value === '' || isNaN(value)) {
+                return '0';
+            }
+            
+            // Convert to number if it's a string
+            if (typeof value !== 'number') {
+                value = parseFloat(value);
+                if (isNaN(value)) {
+                    return '0';
+                }
+            }
+            
+            // Format as currency without the $ symbol (since we add it in the template)
+            return value.toLocaleString('en-US', { 
+                minimumFractionDigits: 0, 
+                maximumFractionDigits: 0 
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderBookValuesTable(beforeValues, afterValues) {
+            console.log('renderBookValuesTable called with:', { beforeValues, afterValues });
+            
+            if (!beforeValues && !afterValues) {
+                return '<p class="text-slate-500 text-sm p-4">No book value data available</p>';
+            }
+
+            const before = beforeValues || {};
+            const after = afterValues || {};
+            const allCategories = new Set([...Object.keys(before), ...Object.keys(after)]);
+
+            console.log('Book value categories found:', Array.from(allCategories));
+
+            if (allCategories.size === 0) {
+                return '<p class="text-slate-500 text-sm p-4">No book value data available</p>';
+            }
+
+            return `
+                <table class="min-w-full text-sm border border-gray-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left font-medium text-slate-500">Category</th>
+                            <th class="px-4 py-2 text-right font-medium text-slate-500">Before</th>
+                            <th class="px-4 py-2 text-right font-medium text-slate-500">After</th>
+                            <th class="px-4 py-2 text-right font-medium text-slate-500">Difference</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        ${Array.from(allCategories).map(category => {
+                            const beforeVal = before[category];
+                            const afterVal = after[category];
+                            
+                            console.log(`Processing category ${category}:`, { beforeVal, afterVal });
+                            
+                            // Convert to numbers, defaulting to 0 if invalid
+                            const beforeNum = (beforeVal !== null && beforeVal !== undefined && !isNaN(beforeVal)) ? Number(beforeVal) : 0;
+                            const afterNum = (afterVal !== null && afterVal !== undefined && !isNaN(afterVal)) ? Number(afterVal) : 0;
+                            
+                            const difference = afterNum - beforeNum;
+                            const isPositive = difference > 0;
+                            const isNegative = difference < 0;
+                            const rowClass = isPositive ? 'bg-green-50' : '';
+
+                            console.log(`Category ${category} processed:`, { beforeNum, afterNum, difference });
+
+                            return `
+                                <tr class="${rowClass}">
+                                    <td class="px-4 py-2 font-medium text-gray-900">${escapeHtml(category)}</td>
+                                    <td class="px-4 py-2 text-right text-gray-600">$${formatCurrency(beforeNum)}</td>
+                                    <td class="px-4 py-2 text-right text-gray-600">$${formatCurrency(afterNum)}</td>
+                                    <td class="px-4 py-2 text-right font-semibold ${
+                                        isPositive ? 'text-green-700' :
+                                        isNegative ? 'text-red-700' :
+                                        'text-slate-500'
+                                    }">
+                                        ${difference === 0 ? '$0' : (isPositive ? '+' : '') + '$' + formatCurrency(Math.abs(difference))}
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function testBookValues() {
+            console.log('Testing book values...');
+            
+            // Test data - same as in dashboard.js
+            const beforeValues = {
+                'Auction': 29061,
+                'Black Book': 31975,
+                'J.D. Power': 34975,
+                'KBB': 29576
+            };
+            
+            const afterValues = {
+                'Auction': 29061,
+                'Black Book': 36925,
+                'J.D. Power': 34975,
+                'KBB': 30060
+            };
+            
+            console.log('Test data:', { beforeValues, afterValues });
+            
+            const tableHtml = renderBookValuesTable(beforeValues, afterValues);
+            document.getElementById('results').innerHTML = tableHtml;
+        }
+    </script>
+</body>
+</html>

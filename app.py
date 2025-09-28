@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 import uvicorn
 from dotenv import load_dotenv
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+from passlib.hash import bcrypt as bcrypt_hash
 
 load_dotenv()
 
@@ -32,18 +32,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 # Security
 security = HTTPBearer()
-# Workaround for bcrypt 4.x compatibility issue with passlib
-try:
-    # Try to use bcrypt directly if available
-    import bcrypt as _bcrypt_module
-    pwd_context = CryptContext(
-        schemes=["bcrypt"],
-        deprecated="auto",
-        bcrypt__ident="2b"  # Use 2b variant
-    )
-except Exception:
-    # Fallback to sha256_crypt if bcrypt fails
-    pwd_context = CryptContext(schemes=["sha256_crypt", "md5_crypt"], deprecated="auto")
 
 # Pydantic Models for API responses
 class VehicleInfo(BaseModel):
@@ -246,7 +234,7 @@ if SECRET_KEY.startswith("your-secret-key-change-in-production"):
 # Check for super admin on startup
 try:
     with db_manager.get_session() as session:
-        super_admin_count = session.query(User).filter(User.role == UserRole.SUPER_ADMIN).count()
+        super_admin_count = session.query(User).filter(User.role == UserRole.SUPER_ADMIN.value).count()
         if super_admin_count == 0:
             print("⚠️ WARNING: No super admin user found!")
             print("🔧 Run 'python setup_admin.py' to create the first super admin user.")
@@ -258,11 +246,20 @@ except Exception as e:
 # Authentication Helper Functions
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain password against a hashed password"""
-    return pwd_context.verify(plain_password, hashed_password)
+    if not hashed_password:
+        return False
+
+    if hashed_password.startswith("$2"):
+        try:
+            return bcrypt_hash.verify(plain_password, hashed_password)
+        except ValueError:
+            return False
+
+    return hashlib.sha256(plain_password.encode()).hexdigest() == hashed_password
 
 def get_password_hash(password: str) -> str:
     """Hash a plain password"""
-    return pwd_context.hash(password)
+    return hashlib.sha256(password.encode()).hexdigest()
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create JWT access token"""
@@ -327,7 +324,15 @@ def require_role(required_roles: List[UserRole]):
                         current_user = arg
                         break
             
-            if not current_user or current_user.role not in required_roles:
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Access denied. Required roles: {[role.value for role in required_roles]}"
+                )
+
+            current_role = current_user.role_enum if hasattr(current_user, "role_enum") else UserRole(str(current_user.role).upper())
+
+            if current_role not in required_roles:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Access denied. Required roles: {[role.value for role in required_roles]}"
@@ -339,7 +344,7 @@ def require_role(required_roles: List[UserRole]):
 
 def get_current_super_admin(current_user: User = Depends(get_current_user)) -> User:
     """Dependency to ensure current user is super admin"""
-    if current_user.role != UserRole.SUPER_ADMIN:
+    if current_user.role_enum != UserRole.SUPER_ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Super admin access required"
@@ -348,7 +353,7 @@ def get_current_super_admin(current_user: User = Depends(get_current_user)) -> U
 
 def get_current_admin_or_higher(current_user: User = Depends(get_current_user)) -> User:
     """Dependency to ensure current user is admin or super admin"""
-    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+    if current_user.role_enum not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin or super admin access required"
@@ -357,7 +362,7 @@ def get_current_admin_or_higher(current_user: User = Depends(get_current_user)) 
 
 def get_accessible_store_ids(current_user: User, selected_store_id: Optional[str] = None) -> List[str]:
     """Get list of store IDs that the current user can access"""
-    if current_user.role == UserRole.SUPER_ADMIN:
+    if current_user.role_enum == UserRole.SUPER_ADMIN:
         if selected_store_id:
             # Super admin has selected a specific store
             return [selected_store_id]
@@ -385,7 +390,7 @@ def apply_store_filter(query, current_user: User, selected_store_id: Optional[st
         # User has specific store access - filter by those stores
         print(f"DEBUG apply_store_filter: Filtering by specific stores: {accessible_stores}")
         return query.filter(VehicleProcessingRecord.environment_id.in_(accessible_stores))
-    elif current_user.role == UserRole.SUPER_ADMIN and not selected_store_id:
+    elif current_user.role_enum == UserRole.SUPER_ADMIN and not selected_store_id:
         # Super admin with no specific store selected - access all stores
         print(f"DEBUG apply_store_filter: Super admin with no store filter - returning all vehicles")
         return query  # No filtering needed
@@ -558,13 +563,6 @@ async def login(user_data: UserLogin):
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        # Update last login
-        with db_manager.get_session() as session:
-            session.query(User).filter(User.id == user.id).update({
-                "last_login": datetime.utcnow()
-            })
-            session.commit()
-        
         # Create proper JWT access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
@@ -578,14 +576,14 @@ async def login(user_data: UserLogin):
             user=UserResponse(
                 id=user.id,
                 username=user.username,
-                role=user.role.value,
+                role=user.role_enum.value,
                 role_display=user.get_role_display(),
                 store_ids=user.get_store_ids(),
                 store_id=user.store_id,
-                created_by_id=user.created_by_id,
+                created_by_id=None,
                 is_active=user.is_active,
                 created_at=user.created_at.isoformat(),
-                last_login=user.last_login.isoformat() if user.last_login else None
+                last_login=None
             )
         )
     except HTTPException:
@@ -602,14 +600,14 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
     return UserResponse(
         id=current_user.id,
         username=current_user.username,
-        role=current_user.role.value,
+        role=current_user.role_enum.value,
         role_display=current_user.get_role_display(),
         store_ids=current_user.get_store_ids(),
         store_id=current_user.store_id,
-        created_by_id=current_user.created_by_id,
+        created_by_id=None,
         is_active=current_user.is_active,
         created_at=current_user.created_at.isoformat(),
-        last_login=current_user.last_login.isoformat() if current_user.last_login else None
+        last_login=None
     )
 
 # User Management Routes
@@ -631,10 +629,10 @@ async def create_user_by_admin(
                 )
             
             # Determine the role for the new user based on current user's role
-            if current_user.role == UserRole.SUPER_ADMIN:
+            if current_user.role_enum == UserRole.SUPER_ADMIN:
                 # Super admin can create admins and users, default to user
                 new_role = UserRole.USER
-            elif current_user.role == UserRole.ADMIN:
+            elif current_user.role_enum == UserRole.ADMIN:
                 # Admin can only create users
                 new_role = UserRole.USER
             else:
@@ -644,7 +642,7 @@ async def create_user_by_admin(
                 )
             
             # For admin users, validate they can only assign stores they have access to
-            if current_user.role == UserRole.ADMIN:
+            if current_user.role_enum == UserRole.ADMIN:
                 admin_stores = current_user.get_store_ids()
                 invalid_stores = [store_id for store_id in user_data.store_ids if store_id not in admin_stores]
                 if invalid_stores:
@@ -656,8 +654,7 @@ async def create_user_by_admin(
             # Create new user
             new_user = User(
                 username=user_data.username,
-                role=new_role,
-                created_by_id=current_user.id,
+                role=new_role.value,
                 is_active=True
             )
             new_user.set_password(user_data.password)
@@ -673,11 +670,11 @@ async def create_user_by_admin(
                 user=UserResponse(
                     id=new_user.id,
                     username=new_user.username,
-                    role=new_user.role.value,
+                    role=new_user.role_enum.value,
                     role_display=new_user.get_role_display(),
                     store_ids=new_user.get_store_ids(),
                     store_id=new_user.store_id,
-                    created_by_id=new_user.created_by_id,
+                    created_by_id=None,
                     is_active=new_user.is_active,
                     created_at=new_user.created_at.isoformat(),
                     last_login=None
@@ -709,7 +706,7 @@ async def create_admin_by_superadmin(
             
             # Validate role
             try:
-                role_enum = UserRole(user_data.role)
+                role_enum = UserRole(user_data.role.upper())
                 if role_enum not in [UserRole.ADMIN, UserRole.USER]:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
@@ -724,8 +721,7 @@ async def create_admin_by_superadmin(
             # Create new user
             new_user = User(
                 username=user_data.username,
-                role=role_enum,
-                created_by_id=current_user.id,
+                role=role_enum.value,
                 is_active=True
             )
             new_user.set_password(user_data.password)
@@ -746,11 +742,11 @@ async def create_admin_by_superadmin(
                 user=UserResponse(
                     id=new_user.id,
                     username=new_user.username,
-                    role=new_user.role.value,
+                    role=new_user.role_enum.value,
                     role_display=new_user.get_role_display(),
                     store_ids=new_user.get_store_ids(),
                     store_id=new_user.store_id,
-                    created_by_id=new_user.created_by_id,
+                    created_by_id=None,
                     is_active=new_user.is_active,
                     created_at=new_user.created_at.isoformat(),
                     last_login=None
@@ -769,23 +765,26 @@ async def list_managed_users(current_user: User = Depends(get_current_admin_or_h
     """List users that the current admin can manage"""
     try:
         with db_manager.get_session() as session:
-            if current_user.role == UserRole.SUPER_ADMIN:
+            if current_user.role_enum == UserRole.SUPER_ADMIN:
                 # Super admin can see all users except other super admins
-                users = session.query(User).filter(User.role != UserRole.SUPER_ADMIN).all()
+                users = session.query(User).filter(User.role != UserRole.SUPER_ADMIN.value).all()
             else:
-                # Admin can only see users they created
-                users = session.query(User).filter(User.created_by_id == current_user.id).all()
+                # Admins can view regular users associated with their store
+                query = session.query(User).filter(User.role == UserRole.USER.value)
+                if current_user.store_id:
+                    query = query.filter(User.store_id == current_user.store_id)
+                users = query.all()
             
             return [
                 UserListItem(
                     id=user.id,
                     username=user.username,
-                    role=user.role.value,
+                    role=user.role_enum.value,
                     role_display=user.get_role_display(),
                     store_ids=user.get_store_ids(),
                     is_active=user.is_active,
                     created_at=user.created_at.isoformat(),
-                    last_login=user.last_login.isoformat() if user.last_login else None
+                    last_login=None
                 ) for user in users
             ]
     except Exception as e:
@@ -880,14 +879,14 @@ async def get_available_stores(current_user: User = Depends(get_current_user)):
             from database import VehicleProcessingRecord
             from sqlalchemy import distinct
             
-            if current_user.role == UserRole.SUPER_ADMIN:
+            if current_user.role_enum == UserRole.SUPER_ADMIN:
                 # Super admin can see all distinct environment_ids
                 store_ids = session.query(distinct(VehicleProcessingRecord.environment_id))\
                     .filter(VehicleProcessingRecord.environment_id.isnot(None))\
                     .order_by(VehicleProcessingRecord.environment_id)\
                     .all()
                 available_stores = [store_id[0] for store_id in store_ids if store_id[0]]
-            elif current_user.role == UserRole.ADMIN:
+            elif current_user.role_enum == UserRole.ADMIN:
                 # Admin sees only their assigned stores
                 available_stores = current_user.get_store_ids()
             else:
@@ -897,7 +896,7 @@ async def get_available_stores(current_user: User = Depends(get_current_user)):
             return {
                 "success": True,
                 "stores": available_stores,
-                "role": current_user.role.value,
+                "role": current_user.role_enum.value,
                 "current_store": current_user.get_store_ids()
             }
     except Exception as e:
