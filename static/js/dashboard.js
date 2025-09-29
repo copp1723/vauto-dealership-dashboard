@@ -889,8 +889,8 @@ class VehicleDashboard {
 
     displayVehicleModal(vehicle) {
         const modal = document.getElementById('vehicle-modal');
-        const modalTitle = document.getElementById('modal-title');
-        const modalBody = document.getElementById('modal-body');
+        const modalTitle = document.getElementById('modal-vehicle-title');
+        const modalBody = document.getElementById('modal-vehicle-body');
         const deleteBtn = document.getElementById('delete-vehicle-btn');
 
         // Store current vehicle for delete functionality

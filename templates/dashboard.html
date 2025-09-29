@@ -424,6 +424,14 @@
                 <div id="modal-vehicle-body" class="p-6">
                     <!-- Content populated by dashboard.js -->
                 </div>
+                <div class="flex items-center justify-end p-6 border-t space-x-2">
+                    <button id="delete-vehicle-btn" type="button" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2" style="display: none;" onclick="dashboard.deleteVehicle()">
+                        <i class="fas fa-trash mr-2"></i>Delete Vehicle
+                    </button>
+                    <button type="button" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2" onclick="closeModal()">
+                        Close
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -466,7 +474,7 @@
     </div>
 
     <!-- Include the full dashboard.js for complete functionality -->
-    <script src="/static/js/dashboard.js?v=20250928-1"></script>
+    <script src="/static/js/dashboard.js?v=20250928-2"></script>
     <script>
         // Helper function for authenticated fetch specific to Tailwind UI
         function authenticatedFetch(url, options = {}) {
