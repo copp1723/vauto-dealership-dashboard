@@ -226,7 +226,36 @@
     <div class="flex h-screen flex-col">
         <!-- Header -->
         <header class="bg-header-blue px-8 py-4 flex justify-between items-center text-white">
-            <h1 class="text-xl font-semibold">Vehicle Processing Dashboard</h1>
+            <div class="flex items-center space-x-6">
+                <h1 class="text-xl font-semibold">Vehicle Processing Dashboard</h1>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <label for="store-select-header" class="text-sm font-medium text-white">Store:</label>
+                        <select id="store-select-header" class="bg-white border border-gray-300 rounded-md shadow-sm py-1 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <option>All Stores</option>
+                            <option>kunesbuickgmcgreenfield</option>
+                            <option>kunesbuickgmcoakcreek</option>
+                            <option>kunescdjrelkhorn</option>
+                            <option>kuneschevroletdevan</option>
+                            <option>kuneschevroletgmclakegeneva</option>
+                            <option>kunesfordantioch</option>
+                            <option>kunesforddevan</option>
+                            <option>kuneshopechevy</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label for="date-range-header" class="text-sm font-medium text-white">Date Range:</label>
+                        <select id="date-range-header" class="bg-white border border-gray-300 rounded-md shadow-sm py-1 px-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <option>Month to Date</option>
+                            <option>This Month</option>
+                            <option>Last Month</option>
+                            <option>Year to Date</option>
+                            <option>Custom Range</option>
+                        </select>
+                    </div>
+                    <button class="bg-white text-gray-700 px-3 py-1 rounded-md text-sm hover:bg-gray-50">This Month</button>
+                </div>
+            </div>
             <div class="relative">
                 <button id="user-menu-button" class="flex items-center space-x-2 p-2 rounded-md hover:bg-white/10 transition-colors">
                     <div class="flex-shrink-0 h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
