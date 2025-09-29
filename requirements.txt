@@ -12,3 +12,5 @@ python-multipart
 SQLAlchemy
 psycopg2-binary
 alembic
+httpx
+twilio
