@@ -660,20 +660,28 @@
                     return;
                 }
                 
-                storeOptionsContainer.innerHTML = filteredStores.map(store => `
-                    <div class="store-option">
-                        <input type="checkbox" id="store-${store}" value="${store}" onchange="updateSelectedStores()">
-                        <label for="store-${store}">${store}</label>
-                    </div>
-                `).join('');
+                storeOptionsContainer.innerHTML = filteredStores.map(store => {
+                    const storeId = typeof store === 'string' ? store : store.id;
+                    const storeLabel = typeof store === 'string' ? store : store.label;
+                    return `
+                        <div class="store-option">
+                            <input type="checkbox" id="store-${storeId}" value="${storeId}" onchange="updateSelectedStores()">
+                            <label for="store-${storeId}">${storeLabel}</label>
+                        </div>
+                    `;
+                }).join('');
             } else {
                 // Super admin can see all stores
-                storeOptionsContainer.innerHTML = stores.map(store => `
-                    <div class="store-option">
-                        <input type="checkbox" id="store-${store}" value="${store}" onchange="updateSelectedStores()">
-                        <label for="store-${store}">${store}</label>
-                    </div>
-                `).join('');
+                storeOptionsContainer.innerHTML = stores.map(store => {
+                    const storeId = typeof store === 'string' ? store : store.id;
+                    const storeLabel = typeof store === 'string' ? store : store.label;
+                    return `
+                        <div class="store-option">
+                            <input type="checkbox" id="store-${storeId}" value="${storeId}" onchange="updateSelectedStores()">
+                            <label for="store-${storeId}">${storeLabel}</label>
+                        </div>
+                    `;
+                }).join('');
             }
         }
 
@@ -1089,13 +1097,15 @@
                 // Admin can only see their assigned stores
                 const adminStores = currentUser.store_ids || [];
                 adminStores.forEach(store => {
-                    const isSelected = selectedStoreIds.includes(store);
+                    const storeId = typeof store === 'string' ? store : store.id;
+                    const storeLabel = typeof store === 'string' ? store : store.label;
+                    const isSelected = selectedStoreIds.includes(storeId);
                     const optionHtml = `
                         <div class="store-option">
                             <label>
-                                <input type="checkbox" value="${store}" ${isSelected ? 'checked' : ''} onchange="updateEditSelectedStores()">
+                                <input type="checkbox" value="${storeId}" ${isSelected ? 'checked' : ''} onchange="updateEditSelectedStores()">
                                 <span class="checkmark"></span>
-                                ${store}
+                                ${storeLabel}
                             </label>
                         </div>
                     `;
@@ -1104,13 +1114,15 @@
             } else {
                 // Super admin can see all stores
                 availableStores.forEach(store => {
-                    const isSelected = selectedStoreIds.includes(store);
+                    const storeId = typeof store === 'string' ? store : store.id;
+                    const storeLabel = typeof store === 'string' ? store : store.label;
+                    const isSelected = selectedStoreIds.includes(storeId);
                     const optionHtml = `
                         <div class="store-option">
                             <label>
-                                <input type="checkbox" value="${store}" ${isSelected ? 'checked' : ''} onchange="updateEditSelectedStores()">
+                                <input type="checkbox" value="${storeId}" ${isSelected ? 'checked' : ''} onchange="updateEditSelectedStores()">
                                 <span class="checkmark"></span>
-                                ${store}
+                                ${storeLabel}
                             </label>
                         </div>
                     `;
