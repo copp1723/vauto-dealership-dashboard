@@ -9,12 +9,12 @@ import json
 import hashlib
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Boolean, Integer, Enum
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Boolean, Integer
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.exc import SQLAlchemyError
 from dotenv import load_dotenv
-from passlib.context import CryptContext
+from passlib.hash import bcrypt as bcrypt_hash
 import enum
 
 # Load environment variables
@@ -23,58 +23,54 @@ load_dotenv()
 # Create base class for models
 Base = declarative_base()
 
-# Password context for hashing
-# Workaround for bcrypt 4.x compatibility issue with passlib
-try:
-    # Try to use bcrypt directly if available
-    import bcrypt as _bcrypt_module
-    pwd_context = CryptContext(
-        schemes=["bcrypt"],
-        deprecated="auto",
-        bcrypt__ident="2b"  # Use 2b variant
-    )
-except Exception:
-    # Fallback to sha256_crypt if bcrypt fails
-    pwd_context = CryptContext(schemes=["sha256_crypt", "md5_crypt"], deprecated="auto")
-
 # Role enumeration for user access levels
-class UserRole(enum.Enum):
-    SUPER_ADMIN = "super_admin"  # Can access all stores, manage all users
-    ADMIN = "admin"             # Can access assigned stores, manage regular users
-    USER = "user"               # Can only access assigned single store
+class UserRole(str, enum.Enum):
+    SUPER_ADMIN = "SUPER_ADMIN"  # Can access all stores, manage all users
+    ADMIN = "ADMIN"             # Can access assigned stores
+    USER = "USER"               # Can only access assigned single store
 
 
 class User(Base):
     """User authentication model for dashboard access"""
     __tablename__ = 'users'
-    
+
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False, index=True)
-    password_hash = Column(String(128), nullable=False)  # Bcrypt hash
-    role = Column(Enum(UserRole), nullable=False, default=UserRole.USER, index=True)  # User role
-    store_ids = Column(Text, nullable=True)  # JSON array of store IDs for multi-store access
-    store_id = Column(String(100), nullable=True, index=True)  # Backward compatibility (deprecated)
-    created_by_id = Column(Integer, nullable=True, index=True)  # ID of user who created this account
-    is_active = Column(Boolean, default=True, nullable=False)  # Account active status
+    password_hash = Column(String(255), nullable=False)  # Match actual database column
+    role = Column(String(20), nullable=False, default=UserRole.USER.value, index=True)
+    store_id = Column(String(100), nullable=True, index=True)
+    store_ids = Column(Text, nullable=True)  # JSON string for multiple stores
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login = Column(DateTime, nullable=True)
-    
+    created_by_id = Column(Integer, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
     def set_password(self, password: str):
-        """Hash and set password using bcrypt"""
-        self.password_hash = pwd_context.hash(password)
-    
+        """Hash and set password using legacy SHA256 for compatibility"""
+        self.password_hash = self._legacy_hash(password)
+
     def check_password(self, password: str) -> bool:
-        """Check if provided password matches stored hash using bcrypt"""
-        try:
-            return pwd_context.verify(password, self.password_hash)
-        except Exception:
-            # Fallback for old SHA256 hashes
-            return self.password_hash == hashlib.sha256(password.encode()).hexdigest()
-    
+        """Check if provided password matches stored hash"""
+        stored = self.password_hash or ""
+
+        # Support accounts that were migrated to bcrypt during unauthorized changes
+        if stored.startswith("$2"):
+            try:
+                return bcrypt_hash.verify(password, stored)
+            except ValueError:
+                pass
+
+        # Fallback to original SHA256 hashing scheme
+        return stored == self._legacy_hash(password)
+
+    @staticmethod
+    def _legacy_hash(password: str) -> str:
+        """Legacy SHA256 hashing implementation"""
+        return hashlib.sha256(password.encode()).hexdigest()
+
     def get_store_ids(self) -> List[str]:
         """Get list of accessible store IDs for this user"""
         if self.role == UserRole.SUPER_ADMIN.value:
-            # Super admin can access all stores - return empty list to indicate "all"
             return []
 
         # Parse store_ids JSON field if it exists
@@ -90,7 +86,7 @@ class User(Base):
 
         # Fallback to single store_id for backward compatibility
         return [self.store_id] if self.store_id else []
-    
+
     def set_store_ids(self, store_ids: List[str]):
         """Set accessible store IDs for this user"""
         import json
@@ -103,53 +99,60 @@ class User(Base):
         else:
             self.store_ids = None
             self.store_id = None
-    
+
     def can_access_store(self, store_id: str) -> bool:
         """Check if user can access a specific store"""
         if self.role == UserRole.SUPER_ADMIN.value:
-            return True  # Super admin can access any store
-        
-        accessible_stores = self.get_store_ids()
-        return store_id in accessible_stores
-    
+            return True
+        return store_id == self.store_id
+
     def can_manage_user(self, target_user: 'User') -> bool:
         """Check if this user can manage (create/edit/delete) another user"""
-        if self.role == UserRole.SUPER_ADMIN:
-            # Super admin can manage admins and users
-            return target_user.role in [UserRole.ADMIN, UserRole.USER]
-        elif self.role == UserRole.ADMIN:
-            # Admin can only manage users they created or regular users
-            return (target_user.role == UserRole.USER and 
-                    (target_user.created_by_id == self.id or target_user.created_by_id is None))
-        else:
-            return False  # Regular users can't manage other users
-    
+        if self.role == UserRole.SUPER_ADMIN.value:
+            return target_user.role != UserRole.SUPER_ADMIN.value
+
+        if self.role == UserRole.ADMIN.value:
+            # Admins can manage regular users assigned to the same store (if defined)
+            if target_user.role == UserRole.USER.value:
+                if not self.store_id or not target_user.store_id:
+                    return True
+                return self.store_id == target_user.store_id
+        return False
+
     def get_role_display(self) -> str:
         """Get human-readable role name"""
         role_names = {
-            UserRole.SUPER_ADMIN: "Super Administrator",
-            UserRole.ADMIN: "Administrator", 
-            UserRole.USER: "User"
+            UserRole.SUPER_ADMIN.value: "Super Administrator",
+            UserRole.ADMIN.value: "Administrator",
+            UserRole.USER.value: "User"
         }
-        return role_names.get(self.role, str(self.role.value))
-    
+        return role_names.get(self.role, str(self.role))
+
+    @property
+    def role_enum(self) -> UserRole:
+        """Return the current role as a UserRole enum, defaulting to USER"""
+        try:
+            return UserRole(str(self.role).upper())
+        except ValueError:
+            return UserRole.USER
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert user to dictionary for JSON serialization"""
         return {
             'id': self.id,
             'username': self.username,
-            'role': self.role.value,
+            'role': self.role,
             'role_display': self.get_role_display(),
             'store_ids': self.get_store_ids(),
-            'store_id': self.store_id,  # Keep for backward compatibility
-            'created_by_id': self.created_by_id,
+            'store_id': self.store_id,
+            'created_by_id': None,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'last_login': self.last_login.isoformat() if self.last_login else None
+            'last_login': None
         }
     
     def __repr__(self):
-        return f"<User(username='{self.username}', role='{self.role.value}', stores={len(self.get_store_ids())})>"
+        return f"<User(username='{self.username}', role='{self.role}', store='{self.store_id}')>"
 
 
 def build_postgres_url_from_env() -> str:
@@ -306,7 +309,7 @@ class VehicleDatabaseManager:
                     migrate_users_to_role_system(self)
                     
                 # Check if we need to create the first super admin
-                super_admins = session.query(User).filter(User.role == UserRole.SUPER_ADMIN).count()
+                super_admins = session.query(User).filter(User.role == UserRole.SUPER_ADMIN.value).count()
                 if super_admins == 0:
                     print("No super admin found. Creating default super admin...")
                     create_super_admin(self)
@@ -639,19 +642,21 @@ def migrate_users_to_role_system(db_manager):
             
             # Update existing users
             for user in users:
-                # If role is not set, default to USER
-                if not hasattr(user, 'role') or user.role is None:
-                    user.role = UserRole.USER
-                
-                # Migrate single store_id to store_ids JSON array
-                if user.store_id and not user.store_ids:
-                    user.set_store_ids([user.store_id])
-                
-                # Set default values for new fields
+                if not getattr(user, 'role', None):
+                    user.role = UserRole.USER.value
+                else:
+                    try:
+                        # Normalize role casing to match enum
+                        normalized_role = UserRole(str(user.role).upper()).value
+                        user.role = normalized_role
+                    except ValueError:
+                        # Leave unknown roles untouched but log for visibility
+                        print(f"Warning: Unrecognized role '{user.role}' for user {user.username}")
+
                 if not hasattr(user, 'is_active') or user.is_active is None:
                     user.is_active = True
-                
-                print(f"Migrated user: {user.username} -> Role: {user.role.value}")
+
+                print(f"Migrated user: {user.username} -> Role: {user.role}")
             
             session.commit()
             print(f"Successfully migrated {len(users)} users to role-based system.")
@@ -681,7 +686,7 @@ def create_super_admin(db_manager, username: str = "superadmin", password: str =
             # Create new super admin
             super_admin = User(
                 username=username,
-                role=UserRole.SUPER_ADMIN,
+                role=UserRole.SUPER_ADMIN.value,
                 is_active=True
             )
             super_admin.set_password(password)
