@@ -73,29 +73,40 @@ class User(Base):
     
     def get_store_ids(self) -> List[str]:
         """Get list of accessible store IDs for this user"""
-        if self.role == UserRole.SUPER_ADMIN:
+        if self.role == UserRole.SUPER_ADMIN.value:
             # Super admin can access all stores - return empty list to indicate "all"
             return []
-        elif self.store_ids:
+
+        # Parse store_ids JSON field if it exists
+        if self.store_ids:
             try:
-                return json.loads(self.store_ids)
+                import json
+                if isinstance(self.store_ids, str):
+                    return json.loads(self.store_ids)
+                elif isinstance(self.store_ids, list):
+                    return self.store_ids
             except (json.JSONDecodeError, TypeError):
-                return []
-        elif self.store_id:  # Backward compatibility
-            return [self.store_id]
-        else:
-            return []
+                pass
+
+        # Fallback to single store_id for backward compatibility
+        return [self.store_id] if self.store_id else []
     
     def set_store_ids(self, store_ids: List[str]):
         """Set accessible store IDs for this user"""
+        import json
+
         if store_ids:
+            # Store as JSON in store_ids field
             self.store_ids = json.dumps(store_ids)
+            # Keep first store in store_id for backward compatibility
+            self.store_id = store_ids[0]
         else:
             self.store_ids = None
+            self.store_id = None
     
     def can_access_store(self, store_id: str) -> bool:
         """Check if user can access a specific store"""
-        if self.role == UserRole.SUPER_ADMIN:
+        if self.role == UserRole.SUPER_ADMIN.value:
             return True  # Super admin can access any store
         
         accessible_stores = self.get_store_ids()
