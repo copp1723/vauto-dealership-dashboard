@@ -7,7 +7,7 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css?v=20250929">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -97,6 +97,99 @@
         .store-dropdown-toggle i {
             transition: transform 0.2s ease;
             color: #6b7280;
+        }
+
+        .select-all-option {
+            border-bottom: 1px solid #e5e7eb;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+        }
+
+        .select-all-option label {
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .store-divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 8px 0;
+        }
+
+        /* Edit User Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #6b7280;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-btn:hover {
+            color: #374151;
+        }
+
+        /* User Actions Styling */
+        .user-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .user-actions .btn {
+            min-width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
         .store-dropdown-toggle.active i {
@@ -358,6 +451,14 @@
                                     <input type="text" placeholder="Search stores..." onkeyup="filterStoreOptions(this.value)">
                                 </div>
                                 <div id="store-options" class="store-dropdown-options">
+                                    <div class="store-option select-all-option">
+                                        <label>
+                                            <input type="checkbox" id="select-all-stores" onchange="toggleAllStores(this.checked)">
+                                            <span class="checkmark"></span>
+                                            <strong>Select All Stores</strong>
+                                        </label>
+                                    </div>
+                                    <div class="store-divider"></div>
                                     <!-- Store checkboxes will be populated here -->
                                 </div>
                             </div>
@@ -395,17 +496,95 @@
         </div>
     </main>
 
+    <!-- Edit User Modal -->
+    <div id="edit-user-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit User</h3>
+                <button class="close-btn" onclick="closeEditUserModal()">&times;</button>
+            </div>
+            <form id="edit-user-form">
+                <input type="hidden" id="edit-user-id">
+
+                <div class="form-group">
+                    <label for="edit-username">Username <span class="required">*</span></label>
+                    <input type="text" id="edit-username" required minlength="3" maxlength="50" readonly>
+                    <small>Username cannot be changed</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-password">New Password (leave blank to keep current)</label>
+                    <input type="password" id="edit-password" minlength="6" placeholder="Enter new password or leave blank">
+                </div>
+
+                <div class="form-group" id="edit-role-selection">
+                    <label for="edit-role">Role <span class="required">*</span></label>
+                    <select id="edit-role" onchange="updateEditStoreAccessHint()">
+                        <option value="user">User (Single Store Access)</option>
+                        <option value="admin">Administrator (Multi-Store Access)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="edit-store-ids">Store Access <span class="required">*</span></label>
+                    <div class="store-dropdown-container">
+                        <button type="button" class="store-dropdown-toggle" onclick="toggleEditStoreDropdown()">
+                            <span id="edit-selected-stores-text">Select stores...</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div id="edit-store-dropdown" class="store-dropdown-menu">
+                            <div class="store-dropdown-search">
+                                <input type="text" placeholder="Search stores..." onkeyup="filterEditStoreOptions(this.value)">
+                            </div>
+                            <div id="edit-store-options" class="store-dropdown-options">
+                                <div class="store-option select-all-option">
+                                    <label>
+                                        <input type="checkbox" id="edit-select-all-stores" onchange="toggleAllEditStores(this.checked)">
+                                        <span class="checkmark"></span>
+                                        <strong>Select All Stores</strong>
+                                    </label>
+                                </div>
+                                <div class="store-divider"></div>
+                                <!-- Store checkboxes will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                    <small id="edit-store-access-hint">Select one or more stores</small>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="edit-is-active">
+                        <span class="checkmark"></span>
+                        User is active
+                    </label>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Update User
+                    </button>
+                </div>
+            </form>
+
+            <div id="edit-user-message" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div class="toast-container" id="toast-container"></div>
 
-    <script src="/static/js/dashboard.js?v=20250903"></script>
+    <script src="/static/js/dashboard.js?v=20250929"></script>
     <script>
         let currentUser = null;
         let allUsers = [];
+        let availableStores = [];
 
         // Initialize page
         async function init() {
             await loadUserInfo();
+            await loadAvailableStores();
             await refreshUserList();
             setupFormValidation();
         }
@@ -428,7 +607,7 @@
                     document.getElementById('user-role').textContent = userData.role_display || userData.role || 'Unknown';
                     
                     // Show role selection for super admins
-                    if (userData.role === 'super_admin') {
+                    if (userData.role.toLowerCase() === 'super_admin') {
                         document.getElementById('role-selection').style.display = 'block';
                     }
                     
@@ -436,7 +615,8 @@
                     updateStoreAccessHint();
                     
                     // Check if user has permission to access this page
-                    if (userData.role !== 'admin' && userData.role !== 'super_admin') {
+                    const userRole = userData.role.toLowerCase();
+                    if (userRole !== 'admin' && userRole !== 'super_admin') {
                         window.location.href = '/';
                     }
                 }
@@ -451,9 +631,11 @@
             try {
                 const response = await authenticatedFetch('/api/stores');
                 const data = await response.json();
-                return data.stores || [];
+                availableStores = data.stores || [];
+                return availableStores;
             } catch (error) {
                 console.error('Error fetching stores:', error);
+                availableStores = [];
                 return [];
             }
         }
@@ -519,6 +701,37 @@
             }
         }
 
+        // Toggle all stores selection
+        function toggleAllStores(selectAll) {
+            const storeCheckboxes = document.querySelectorAll('#store-options input[type="checkbox"]:not(#select-all-stores)');
+            storeCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAll;
+            });
+            updateSelectedStoresDisplay();
+        }
+
+        // Update selected stores display
+        function updateSelectedStoresDisplay() {
+            const selectedStores = getSelectedStores();
+            const displayText = document.getElementById('selected-stores-text');
+            const selectAllCheckbox = document.getElementById('select-all-stores');
+            const allStoreCheckboxes = document.querySelectorAll('#store-options input[type="checkbox"]:not(#select-all-stores)');
+
+            if (selectedStores.length === 0) {
+                displayText.textContent = 'Select stores...';
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedStores.length === allStoreCheckboxes.length) {
+                displayText.textContent = `All stores selected (${selectedStores.length})`;
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                displayText.textContent = `${selectedStores.length} store${selectedStores.length !== 1 ? 's' : ''} selected`;
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+        }
+
         // Filter store options based on search
         function filterStoreOptions(searchTerm) {
             const options = document.querySelectorAll('.store-option');
@@ -532,16 +745,7 @@
 
         // Update selected stores display
         function updateSelectedStores() {
-            const checkboxes = document.querySelectorAll('#store-options input[type="checkbox"]:checked');
-            const selectedText = document.getElementById('selected-stores-text');
-            
-            if (checkboxes.length === 0) {
-                selectedText.textContent = 'Select stores...';
-            } else if (checkboxes.length === 1) {
-                selectedText.textContent = checkboxes[0].value;
-            } else {
-                selectedText.textContent = `${checkboxes.length} stores selected`;
-            }
+            updateSelectedStoresDisplay();
         }
 
         // Get selected store IDs
@@ -640,7 +844,11 @@
                         </div>
                     </div>
                     <div class="user-actions">
-                        <button class="btn btn-sm ${user.is_active ? 'btn-warning' : 'btn-success'}" 
+                        <button class="btn btn-sm btn-primary"
+                                onclick="openEditUserModal(${user.id})" title="Edit user">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm ${user.is_active ? 'btn-warning' : 'btn-success'}"
                                 onclick="toggleUserStatus(${user.id})" title="${user.is_active ? 'Deactivate' : 'Activate'}">
                             <i class="fas fa-${user.is_active ? 'pause' : 'play'}"></i>
                         </button>
@@ -841,6 +1049,217 @@
             localStorage.removeItem('token');
             window.location.href = '/login';
         }
+
+        // Edit User Modal Functions
+        function openEditUserModal(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) {
+                alert('User not found. Please refresh the page and try again.');
+                return;
+            }
+
+            // Populate form fields
+            document.getElementById('edit-user-id').value = user.id;
+            document.getElementById('edit-username').value = user.username;
+            document.getElementById('edit-password').value = '';
+            document.getElementById('edit-role').value = user.role;
+            document.getElementById('edit-is-active').checked = user.is_active;
+
+            // Initialize edit store dropdown
+            initializeEditStoreDropdown(user.store_ids);
+
+            // Show modal
+            document.getElementById('edit-user-modal').classList.add('active');
+        }
+
+        function closeEditUserModal() {
+            document.getElementById('edit-user-modal').classList.remove('active');
+            document.getElementById('edit-user-message').innerHTML = '';
+        }
+
+        function initializeEditStoreDropdown(selectedStoreIds = []) {
+            const storeOptionsContainer = document.getElementById('edit-store-options');
+            const selectAllOption = storeOptionsContainer.querySelector('.select-all-option');
+
+            // Clear existing options except select all
+            const existingOptions = storeOptionsContainer.querySelectorAll('.store-option:not(.select-all-option)');
+            existingOptions.forEach(option => option.remove());
+
+            if (currentUser.role === 'admin') {
+                // Admin can only see their assigned stores
+                const adminStores = currentUser.store_ids || [];
+                adminStores.forEach(store => {
+                    const isSelected = selectedStoreIds.includes(store);
+                    const optionHtml = `
+                        <div class="store-option">
+                            <label>
+                                <input type="checkbox" value="${store}" ${isSelected ? 'checked' : ''} onchange="updateEditSelectedStores()">
+                                <span class="checkmark"></span>
+                                ${store}
+                            </label>
+                        </div>
+                    `;
+                    selectAllOption.insertAdjacentHTML('afterend', optionHtml);
+                });
+            } else {
+                // Super admin can see all stores
+                availableStores.forEach(store => {
+                    const isSelected = selectedStoreIds.includes(store);
+                    const optionHtml = `
+                        <div class="store-option">
+                            <label>
+                                <input type="checkbox" value="${store}" ${isSelected ? 'checked' : ''} onchange="updateEditSelectedStores()">
+                                <span class="checkmark"></span>
+                                ${store}
+                            </label>
+                        </div>
+                    `;
+                    selectAllOption.insertAdjacentHTML('afterend', optionHtml);
+                });
+            }
+
+            updateEditSelectedStoresDisplay();
+        }
+
+        function toggleEditStoreDropdown() {
+            const dropdown = document.getElementById('edit-store-dropdown');
+            const toggle = dropdown.previousElementSibling;
+            const isVisible = dropdown.classList.contains('show');
+
+            if (!isVisible) {
+                dropdown.classList.add('show');
+                toggle.classList.add('active');
+            } else {
+                dropdown.classList.remove('show');
+                toggle.classList.remove('active');
+            }
+        }
+
+        function toggleAllEditStores(selectAll) {
+            const storeCheckboxes = document.querySelectorAll('#edit-store-options input[type="checkbox"]:not(#edit-select-all-stores)');
+            storeCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAll;
+            });
+            updateEditSelectedStoresDisplay();
+        }
+
+        function updateEditSelectedStores() {
+            updateEditSelectedStoresDisplay();
+        }
+
+        function updateEditSelectedStoresDisplay() {
+            const selectedStores = getEditSelectedStores();
+            const displayText = document.getElementById('edit-selected-stores-text');
+            const selectAllCheckbox = document.getElementById('edit-select-all-stores');
+            const allStoreCheckboxes = document.querySelectorAll('#edit-store-options input[type="checkbox"]:not(#edit-select-all-stores)');
+
+            if (selectedStores.length === 0) {
+                displayText.textContent = 'Select stores...';
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            } else if (selectedStores.length === allStoreCheckboxes.length) {
+                displayText.textContent = `All stores selected (${selectedStores.length})`;
+                selectAllCheckbox.checked = true;
+                selectAllCheckbox.indeterminate = false;
+            } else {
+                displayText.textContent = `${selectedStores.length} store${selectedStores.length !== 1 ? 's' : ''} selected`;
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = true;
+            }
+        }
+
+        function getEditSelectedStores() {
+            const checkboxes = document.querySelectorAll('#edit-store-options input[type="checkbox"]:checked:not(#edit-select-all-stores)');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        function filterEditStoreOptions(searchTerm) {
+            const options = document.querySelectorAll('#edit-store-options .store-option:not(.select-all-option)');
+            const term = searchTerm.toLowerCase();
+
+            options.forEach(option => {
+                const label = option.textContent.toLowerCase();
+                option.style.display = label.includes(term) ? 'flex' : 'none';
+            });
+        }
+
+        function updateEditStoreAccessHint() {
+            const role = document.getElementById('edit-role').value;
+            const hint = document.getElementById('edit-store-access-hint');
+
+            if (role === 'user') {
+                hint.textContent = 'Select exactly one store for regular users';
+            } else {
+                hint.textContent = 'Select one or more stores for administrators';
+            }
+        }
+
+        // Handle edit user form submission
+        document.getElementById('edit-user-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            const messageDiv = document.getElementById('edit-user-message');
+
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+            messageDiv.innerHTML = '';
+
+            const userId = document.getElementById('edit-user-id').value;
+            const password = document.getElementById('edit-password').value;
+            const role = document.getElementById('edit-role').value;
+            const isActive = document.getElementById('edit-is-active').checked;
+            const storeIds = getEditSelectedStores();
+
+            // Validate store selection
+            if (storeIds.length === 0) {
+                messageDiv.innerHTML = '<div class="alert alert-error">Please select at least one store</div>';
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+                return;
+            }
+
+            try {
+                const data = {
+                    role: role,
+                    store_ids: storeIds,
+                    is_active: isActive
+                };
+
+                // Only include password if it's provided
+                if (password.trim()) {
+                    data.password = password;
+                }
+
+                const response = await authenticatedFetch(`/api/admin/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    messageDiv.innerHTML = '<div class="alert alert-success">User updated successfully!</div>';
+                    refreshUserList();
+
+                    // Close modal after 2 seconds
+                    setTimeout(() => {
+                        closeEditUserModal();
+                    }, 2000);
+                } else {
+                    messageDiv.innerHTML = `<div class="alert alert-error">${result.error || 'Failed to update user'}</div>`;
+                }
+
+            } catch (error) {
+                console.error('Error updating user:', error);
+                messageDiv.innerHTML = `<div class="alert alert-error">${error.message}</div>`;
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = originalText;
+            }
+        });
 
         // Initialize when DOM is loaded
         document.addEventListener('DOMContentLoaded', init);
