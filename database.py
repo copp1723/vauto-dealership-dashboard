@@ -57,8 +57,10 @@ class User(Base):
         if stored.startswith("$2"):
             try:
                 return bcrypt_hash.verify(password, stored)
-            except ValueError:
-                pass
+            except Exception as e:
+                # Bcrypt verification failed - return False instead of falling through
+                print(f"Bcrypt verification error: {e}")
+                return False
 
         # Fallback to original SHA256 hashing scheme
         return stored == self._legacy_hash(password)
