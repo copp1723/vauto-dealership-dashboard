@@ -1,0 +1,49 @@
+<!-- Replace the existing statistics section in /templates/dashboard.html with this -->
+<!-- Search for "statistics-section" and replace the entire section -->
+
+<!-- Statistics Section with Loading Overlay -->
+<section class="statistics-section" style="position: relative;">
+    <div class="loading-overlay" id="stats-loading">
+        <div class="loading-content">
+            <div class="loading-spinner-large">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <p class="loading-text">Loading statistics...</p>
+        </div>
+    </div>
+    
+    <!-- Statistics Grid with Icons -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-car"></i>
+            </div>
+            <div class="stat-number" id="total-vehicles">-</div>
+            <div class="stat-label">Total Vehicles</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-file-alt"></i>
+            </div>
+            <div class="stat-number" id="descriptions-updated">-</div>
+            <div class="stat-label">Descriptions Updated</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-award"></i>
+            </div>
+            <div class="stat-number" id="total-features">-</div>
+            <div class="stat-label">Features Marked</div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="stat-number" id="time-saved">-</div>
+            <div class="stat-label">Time Saved</div>
+        </div>
+    </div>
+</section>

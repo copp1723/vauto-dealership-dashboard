@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend API Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        #tokenInput { width: 500px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Frontend API Test</h1>
+
+    <div>
+        <h3>Step 1: Get Token</h3>
+        <button onclick="getToken()">Get Debug Token</button>
+        <div id="tokenResult"></div>
+    </div>
+
+    <div>
+        <h3>Step 2: Set Token</h3>
+        <input type="text" id="tokenInput" placeholder="Paste token here">
+        <button onclick="setToken()">Set Token in localStorage</button>
+        <div id="setTokenResult"></div>
+    </div>
+
+    <div>
+        <h3>Step 3: Test API Calls</h3>
+        <button onclick="testStatistics()">Test Statistics API</button>
+        <button onclick="testVehicles()">Test Vehicles API</button>
+        <div id="apiResults"></div>
+    </div>
+
+    <script>
+        // Helper function for authenticated API calls (same as dashboard)
+        function authenticatedFetch(url, options = {}) {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                throw new Error('No token found in localStorage');
+            }
+
+            const authOptions = {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            return fetch(url, authOptions);
+        }
+
+        async function getToken() {
+            try {
+                const response = await fetch('/api/debug/get-token');
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('tokenResult').innerHTML =
+                        `<div class="result success">
+                            <strong>Token received:</strong><br>
+                            <small>${data.access_token}</small><br>
+                            <em>Expires in ${data.expires_in_minutes} minutes</em>
+                        </div>`;
+                    document.getElementById('tokenInput').value = data.access_token;
+                } else {
+                    throw new Error(data.error || 'Failed to get token');
+                }
+            } catch (error) {
+                document.getElementById('tokenResult').innerHTML =
+                    `<div class="result error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function setToken() {
+            const token = document.getElementById('tokenInput').value.trim();
+            if (!token) {
+                document.getElementById('setTokenResult').innerHTML =
+                    `<div class="result error">Please enter a token</div>`;
+                return;
+            }
+
+            localStorage.setItem('token', token);
+            document.getElementById('setTokenResult').innerHTML =
+                `<div class="result success">Token set in localStorage!</div>`;
+        }
+
+        async function testStatistics() {
+            try {
+                const response = await authenticatedFetch('/api/statistics');
+                const data = await response.json();
+
+                if (data.success) {
+                    const stats = data.statistics;
+                    document.getElementById('apiResults').innerHTML =
+                        `<div class="result success">
+                            <strong>Statistics API Success!</strong><br>
+                            Total Vehicles: ${stats.total_vehicles}<br>
+                            Success Rate: ${stats.success_rate}<br>
+                            Descriptions Updated: ${stats.descriptions_updated}<br>
+                            Features Marked: ${stats.total_features_marked}
+                        </div>`;
+                } else {
+                    throw new Error(data.error || 'Statistics API failed');
+                }
+            } catch (error) {
+                document.getElementById('apiResults').innerHTML =
+                    `<div class="result error">Statistics API Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testVehicles() {
+            try {
+                const response = await authenticatedFetch('/api/vehicles?page=1&per_page=5');
+                const data = await response.json();
+
+                if (data.success) {
+                    const vehicles = data.vehicles;
+                    const pagination = data.pagination;
+                    document.getElementById('apiResults').innerHTML =
+                        `<div class="result success">
+                            <strong>Vehicles API Success!</strong><br>
+                            Returned: ${vehicles.length} vehicles<br>
+                            Total in DB: ${pagination.total}<br>
+                            Sample Vehicle: ${vehicles[0] ? vehicles[0].stock_number + ' - ' + vehicles[0].name : 'None'}
+                        </div>`;
+                } else {
+                    throw new Error(data.error || 'Vehicles API failed');
+                }
+            } catch (error) {
+                document.getElementById('apiResults').innerHTML =
+                    `<div class="result error">Vehicles API Error: ${error.message}</div>`;
+            }
+        }
+
+        // Check if token exists on page load
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.getElementById('setTokenResult').innerHTML =
+                    `<div class="result success">Token already exists in localStorage</div>`;
+                document.getElementById('tokenInput').value = token;
+            }
+        };
+    </script>
+</body>
+</html>

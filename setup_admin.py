@@ -29,7 +29,7 @@ def main():
         # Check if super admin already exists
         with db_manager.get_session() as session:
             from database import User, UserRole
-            existing_super_admin = session.query(User).filter(User.role == UserRole.SUPER_ADMIN).first()
+            existing_super_admin = session.query(User).filter(User.role == UserRole.SUPER_ADMIN.value).first()
             
             if existing_super_admin:
                 print(f"\n⚠️  Super admin already exists: {existing_super_admin.username}")

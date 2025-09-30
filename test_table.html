@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Table Layout</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        :root {
+            --light-blue: #ACC2D8;
+            --medium-blue: #7C9FC2;
+            --dark-blue: #5788B3;
+            --header-blue: #5788B3;
+            --text-dark: #1e293b;
+            --text-light: #475569;
+            --border-color: #e2e8f0;
+        }
+        .text-dark-blue { color: var(--dark-blue); }
+        .bg-header-blue { background-color: var(--header-blue); }
+        .border-light-blue { border-color: var(--light-blue); }
+        .text-text-dark { color: var(--text-dark); }
+        .text-text-light { color: var(--text-light); }
+        
+        .clickable-row {
+            cursor: pointer;
+        }
+        .clickable-row:hover {
+            background-color: #f8fafc;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.hidden {
+            pointer-events: none;
+            opacity: 0;
+        }
+        .modal-container {
+            background-color: white;
+            border-radius: 0.75rem;
+            max-width: 56rem; /* 896px */
+            width: 100%;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            transform: scale(0.95);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay:not(.hidden) .modal-container {
+            transform: scale(1);
+        }
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="text-slate-800">
+    <div class="p-8">
+        <h1 class="text-2xl font-bold text-dark-blue mb-6">Vehicle Table Test</h1>
+        
+        <div class="bg-white p-6 rounded-lg border border-slate-200">
+            <div id="vehicles-grid">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Vehicle</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock #</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Processed At</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-slate-200">
+                        <tr class="clickable-row hover:bg-slate-50 cursor-pointer" onclick="openTestModal()">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-dark">2024 Buick Enclave Premium Group</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">43P1014</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">Sep 21, 2025 at 12:10 PM</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Completed</span>
+                            </td>
+                        </tr>
+                        <tr class="clickable-row hover:bg-slate-50 cursor-pointer" onclick="openTestModal()">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-dark">2019 Chevrolet Silverado 1500</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">67890B</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">Sep 21, 2025 at 11:55 AM</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Completed</span>
+                            </td>
+                        </tr>
+                        <tr class="clickable-row hover:bg-slate-50 cursor-pointer" onclick="openTestModal()">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-text-dark">2015 GMC Sierra 2500HD</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">11223C</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-text-light">Sep 21, 2025 at 11:42 AM</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">In Progress</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Modal -->
+    <div id="vehicle-modal" class="modal-overlay hidden">
+        <div class="modal-container">
+            <header class="modal-header">
+                <h2 id="modal-title" class="text-lg font-semibold text-text-dark">2024 Buick Enclave Premium Group</h2>
+                <button onclick="closeTestModal()" class="text-slate-500 hover:text-slate-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </header>
+            <div id="modal-body" class="modal-body">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div>
+                        <h3 class="text-sm font-semibold text-dark-blue mb-2">Basic Information</h3>
+                        <dl class="text-sm">
+                            <dt class="font-medium text-text-light">Stock Number</dt>
+                            <dd class="text-text-dark mb-2">43P1014</dd>
+                            <dt class="font-medium text-text-light">VIN</dt>
+                            <dd class="text-text-dark">5GAEVBKW1RJ130818</dd>
+                        </dl>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-dark-blue mb-2">Processing Summary</h3>
+                        <dl class="text-sm">
+                            <dt class="font-medium text-text-light">Processing Date</dt>
+                            <dd class="text-text-dark mb-2">September 21, 2025 at 12:10 PM</dd>
+                            <dt class="font-medium text-text-light">Features Marked</dt>
+                            <dd class="text-text-dark">18</dd>
+                        </dl>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-dark-blue mb-2">Merchandising Updates</h3>
+                        <ul class="text-sm text-text-dark list-disc list-inside space-y-1">
+                            <li>Synced <strong>18 features</strong> from window sticker.</li>
+                            <li>Generated new vehicle description.</li>
+                            <li>Updated <strong>KBB & Black Book</strong> values.</li>
+                            <li>Flagged: Low photo count (4 photos).</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add fade-in animation to table rows
+        document.addEventListener('DOMContentLoaded', function() {
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach((row, index) => {
+                row.classList.add('fade-in');
+                row.style.animationDelay = `${index * 0.03}s`;
+            });
+        });
+
+        function openTestModal() {
+            console.log('Opening test modal...');
+            const modal = document.getElementById('vehicle-modal');
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            console.log('Modal opened');
+        }
+
+        function closeTestModal() {
+            console.log('Closing test modal...');
+            const modal = document.getElementById('vehicle-modal');
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+            console.log('Modal closed');
+        }
+
+        // Close modal when clicking on overlay
+        document.getElementById('vehicle-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'vehicle-modal') {
+                closeTestModal();
+            }
+        });
+    </script>
+</body>
+</html>
