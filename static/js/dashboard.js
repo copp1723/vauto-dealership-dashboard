@@ -146,7 +146,7 @@ function closeModal() {
 class GlobalDateFilter {
     constructor(onChange) {
         this.onChange = onChange;
-        this.currentFilter = 'mtd';
+        this.currentFilter = 'last_month';
         this.customStartDate = null;
         this.customEndDate = null;
 
@@ -314,12 +314,14 @@ class GlobalDateFilter {
                     end: today.toISOString().split('T')[0],
                     label: 'Month to Date'
                 };
-            case 'this_month':
+            case 'this_month': {
+                const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
                 return {
                     start: startOfMonth.toISOString().split('T')[0],
-                    end: today.toISOString().split('T')[0],
+                    end: endOfMonth.toISOString().split('T')[0],
                     label: 'This Month'
                 };
+            }
             case 'last_month': {
                 const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
                 const end = new Date(today.getFullYear(), today.getMonth(), 0);
@@ -358,7 +360,8 @@ class GlobalDateFilter {
     updateRangeDisplay() {
         const display = document.getElementById('current-range-display');
         if (display) {
-            display.textContent = this.getDateRange().label;
+            const range = this.getDateRange();
+            display.textContent = `${range.label} (${range.start} to ${range.end})`;
         }
     }
 
@@ -868,7 +871,8 @@ class DashboardApp {
                 params.append('store_id', this.selectedStoreId);
             }
 
-            const response = await authenticatedFetch(`/api/vehicles?${params.toString()}`);
+            const url = `/api/vehicles?${params.toString()}`;
+            const response = await authenticatedFetch(url);
             const data = await response.json();
 
             if (!data || !data.success) {
