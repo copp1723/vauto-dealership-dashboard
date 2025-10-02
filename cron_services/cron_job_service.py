@@ -27,7 +27,7 @@ class CronJobService:
         env_vars = self._build_environment_vars(cron_job_data)
 
         payload = {
-            "type": "cron_job",
+            "type": "cron",
             "name": cron_job_data.name,
             "repo": cron_job_data.repo_url,
             "branch": cron_job_data.branch,
@@ -55,7 +55,7 @@ class CronJobService:
 
     async def list_cron_jobs(self) -> List[Dict[str, Any]]:
         """List all cron jobs"""
-        return await self.render_client.list_services("cron_job")
+        return await self.render_client.list_services("cron")
 
     async def get_cron_job(self, service_id: str) -> Dict[str, Any]:
         """Get details of a specific cron job"""

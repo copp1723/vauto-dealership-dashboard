@@ -56,7 +56,7 @@ class RenderAPIClient:
         """Cancel a running cron job"""
         return await self._make_request("DELETE", f"/services/{service_id}/runs/{run_id}")
 
-    async def list_services(self, service_type: str = "cron_job") -> List[Dict[str, Any]]:
+    async def list_services(self, service_type: str = "cron") -> List[Dict[str, Any]]:
         """List all services, optionally filtered by type"""
         params = f"?type={service_type}" if service_type else ""
         return await self._make_request("GET", f"/services{params}")
