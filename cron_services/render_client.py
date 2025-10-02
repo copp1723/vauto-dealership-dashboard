@@ -73,6 +73,10 @@ class RenderAPIClient:
         """Delete a service"""
         return await self._make_request("DELETE", f"/services/{service_id}")
 
+    async def set_env_vars(self, service_id: str, env_vars: List[Dict[str, str]]) -> Dict[str, Any]:
+        """Set environment variables for a service (replaces all existing)"""
+        return await self._make_request("PUT", f"/services/{service_id}/env-vars", env_vars)
+
     async def list_service_runs(self, service_id: str) -> List[Dict[str, Any]]:
         """List runs for a specific service"""
         return await self._make_request("GET", f"/services/{service_id}/runs")
