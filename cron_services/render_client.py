@@ -1,6 +1,10 @@
 import httpx
 from typing import Dict, Any, List, Optional
 from cron_services.config import cron_settings as settings
+import logging
+import json
+
+logger = logging.getLogger(__name__)
 
 
 class RenderAPIClient:
@@ -17,10 +21,27 @@ class RenderAPIClient:
     ) -> Dict[str, Any]:
         async with httpx.AsyncClient() as client:
             url = f"{self.base_url}{endpoint}"
+
+            # Log the request payload for debugging
+            if data:
+                logger.info(f"Render API Request: {method} {url}")
+                logger.debug(f"Request payload: {json.dumps(data, indent=2)}")
+
             response = await client.request(
                 method=method, url=url, headers=self.headers, json=data
             )
-            response.raise_for_status()
+
+            # Better error handling with response body
+            if not response.is_success:
+                error_body = response.text
+                logger.error(f"Render API Error: {response.status_code} - {error_body}")
+                try:
+                    error_json = response.json()
+                    logger.error(f"Error details: {json.dumps(error_json, indent=2)}")
+                except:
+                    pass
+                response.raise_for_status()
+
             return response.json()
 
     async def create_cron_job(self, service_data: Dict[str, Any]) -> Dict[str, Any]:
