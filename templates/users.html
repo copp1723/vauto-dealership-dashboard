@@ -644,45 +644,51 @@
         async function initializeStoreDropdown() {
             const stores = await loadAvailableStores();
             const storeOptionsContainer = document.getElementById('store-options');
-            
+
+            // Clear existing store options (but keep select-all and divider)
+            const existingOptions = storeOptionsContainer.querySelectorAll('.store-option:not(.select-all-option)');
+            existingOptions.forEach(option => option.remove());
+
             if (stores.length === 0) {
-                storeOptionsContainer.innerHTML = '<div style="padding: 10px; color: #666;">No stores available</div>';
+                const emptyState = document.createElement('div');
+                emptyState.className = 'empty-state';
+                emptyState.textContent = 'No stores available';
+                storeOptionsContainer.appendChild(emptyState);
                 return;
             }
-            
+
+            let storesToShow = stores;
+
             if (currentUser.role === 'admin') {
                 // For admin users, only show stores they have access to
                 const adminStores = currentUser.store_ids || [];
-                const filteredStores = stores.filter(store => adminStores.includes(store));
-                
-                if (filteredStores.length === 0) {
-                    storeOptionsContainer.innerHTML = '<div class="empty-state">No stores available</div>';
+                storesToShow = stores.filter(store => {
+                    const storeId = typeof store === 'string' ? store : store.id;
+                    return adminStores.includes(storeId);
+                });
+
+                if (storesToShow.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'empty-state';
+                    emptyState.textContent = 'No stores available';
+                    storeOptionsContainer.appendChild(emptyState);
                     return;
                 }
-                
-                storeOptionsContainer.innerHTML = filteredStores.map(store => {
-                    const storeId = typeof store === 'string' ? store : store.id;
-                    const storeLabel = typeof store === 'string' ? store : store.label;
-                    return `
-                        <div class="store-option">
-                            <input type="checkbox" id="store-${storeId}" value="${storeId}" onchange="updateSelectedStores()">
-                            <label for="store-${storeId}">${storeLabel}</label>
-                        </div>
-                    `;
-                }).join('');
-            } else {
-                // Super admin can see all stores
-                storeOptionsContainer.innerHTML = stores.map(store => {
-                    const storeId = typeof store === 'string' ? store : store.id;
-                    const storeLabel = typeof store === 'string' ? store : store.label;
-                    return `
-                        <div class="store-option">
-                            <input type="checkbox" id="store-${storeId}" value="${storeId}" onchange="updateSelectedStores()">
-                            <label for="store-${storeId}">${storeLabel}</label>
-                        </div>
-                    `;
-                }).join('');
             }
+
+            // Add store options
+            storesToShow.forEach(store => {
+                const storeId = typeof store === 'string' ? store : store.id;
+                const storeLabel = typeof store === 'string' ? store : store.label;
+
+                const optionDiv = document.createElement('div');
+                optionDiv.className = 'store-option';
+                optionDiv.innerHTML = `
+                    <input type="checkbox" id="store-${storeId}" value="${storeId}" onchange="updateSelectedStores()">
+                    <label for="store-${storeId}">${storeLabel}</label>
+                `;
+                storeOptionsContainer.appendChild(optionDiv);
+            });
         }
 
         // Toggle store dropdown visibility
@@ -694,8 +700,9 @@
             if (!isVisible) {
                 dropdown.classList.add('show');
                 toggle.classList.add('active');
-                // Initialize stores if not already done
-                if (document.getElementById('store-options').children.length === 0) {
+                // Initialize stores if not already done (check for actual store options, not just children)
+                const storeCheckboxes = document.querySelectorAll('#store-options .store-option:not(.select-all-option)');
+                if (storeCheckboxes.length === 0) {
                     initializeStoreDropdown();
                 }
                 // Focus search input
