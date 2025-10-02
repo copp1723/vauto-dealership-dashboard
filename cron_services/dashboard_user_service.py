@@ -3,14 +3,14 @@ import hashlib
 import secrets
 from datetime import datetime
 from cron_models.cron_job import DealershipOnboard
-from database import User, UserRole, DatabaseManager
+from database import User, UserRole, VehicleDatabaseManager
 
 
 class DashboardUserService:
     """Service for managing dashboard user creation."""
 
     def __init__(self):
-        self.db_manager = DatabaseManager()
+        self.db_manager = VehicleDatabaseManager()
 
     def _hash_password(self, password: str) -> str:
         """Hash password for storage (simplified example)"""
