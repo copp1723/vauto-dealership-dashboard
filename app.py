@@ -1308,22 +1308,31 @@ async def get_available_stores(current_user: User = Depends(get_current_user)):
                 # Admin or regular user sees only their assigned stores
                 available_stores = current_user.get_store_ids()
 
-            store_options = [
-                {
-                    "id": store_id,
-                    "label": get_friendly_store_label(store_id)
-                }
-                for store_id in available_stores
-            ]
+            # Create store options and deduplicate by label (display name)
+            # Some stores have multiple environment_ids that map to the same display name
+            seen_labels = set()
+            store_options = []
+            for store_id in available_stores:
+                label = get_friendly_store_label(store_id)
+                if label not in seen_labels:
+                    seen_labels.add(label)
+                    store_options.append({
+                        "id": store_id,
+                        "label": label
+                    })
 
+            # Deduplicate current stores by label as well
             current_store_ids = current_user.get_store_ids()
-            current_stores = [
-                {
-                    "id": store_id,
-                    "label": get_friendly_store_label(store_id)
-                }
-                for store_id in current_store_ids
-            ]
+            seen_current_labels = set()
+            current_stores = []
+            for store_id in current_store_ids:
+                label = get_friendly_store_label(store_id)
+                if label not in seen_current_labels:
+                    seen_current_labels.add(label)
+                    current_stores.append({
+                        "id": store_id,
+                        "label": label
+                    })
 
             return {
                 "success": True,
