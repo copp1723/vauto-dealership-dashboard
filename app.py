@@ -1843,25 +1843,41 @@ async def get_statistics(
             total_features_marked = sum(count[0] or 0 for count in total_features)
             avg_features_per_vehicle = (total_features_marked / total_vehicles) if total_vehicles > 0 else 0
 
-            # Calculate book value totals (Month-to-Date and Year-to-Date)
-            month_start = get_month_start()
-            year_start = get_year_start()
+            # Calculate book value totals using the selected date range (or MTD/YTD if no range selected)
+            # If user selected a date range, use that for book values
+            # Otherwise fall back to MTD/YTD
+            print(f"DEBUG BOOK VALUE QUERY: start_date={start_date}, end_date={end_date}, type(start_date)={type(start_date)}")
+            if start_date and end_date:
+                # Use the selected date range for both MTD and YTD (they'll be the same)
+                # Note: base_query already has the date filter applied above
+                print(f"DEBUG: Using selected date range for book values: {start_date} to {end_date}")
+                mtd_vehicles = base_query.filter(
+                    VehicleProcessingRecord.book_values_processed == True,
+                    VehicleProcessingRecord.book_values_before_processing.isnot(None),
+                    VehicleProcessingRecord.book_values_after_processing.isnot(None)
+                ).all()
+                print(f"DEBUG: Found {len(mtd_vehicles)} vehicles with book values in selected range")
+                ytd_vehicles = mtd_vehicles  # Same as MTD when date range is selected
+            else:
+                # No date range selected - use MTD/YTD
+                month_start = get_month_start()
+                year_start = get_year_start()
 
-            # Get vehicles with book values for MTD
-            mtd_vehicles = base_query.filter(
-                VehicleProcessingRecord.processing_date >= month_start,
-                VehicleProcessingRecord.book_values_processed == True,
-                VehicleProcessingRecord.book_values_before_processing.isnot(None),
-                VehicleProcessingRecord.book_values_after_processing.isnot(None)
-            ).all()
+                # Get vehicles with book values for MTD
+                mtd_vehicles = base_query.filter(
+                    VehicleProcessingRecord.processing_date >= month_start,
+                    VehicleProcessingRecord.book_values_processed == True,
+                    VehicleProcessingRecord.book_values_before_processing.isnot(None),
+                    VehicleProcessingRecord.book_values_after_processing.isnot(None)
+                ).all()
 
-            # Get vehicles with book values for YTD
-            ytd_vehicles = base_query.filter(
-                VehicleProcessingRecord.processing_date >= year_start,
-                VehicleProcessingRecord.book_values_processed == True,
-                VehicleProcessingRecord.book_values_before_processing.isnot(None),
-                VehicleProcessingRecord.book_values_after_processing.isnot(None)
-            ).all()
+                # Get vehicles with book values for YTD
+                ytd_vehicles = base_query.filter(
+                    VehicleProcessingRecord.processing_date >= year_start,
+                    VehicleProcessingRecord.book_values_processed == True,
+                    VehicleProcessingRecord.book_values_before_processing.isnot(None),
+                    VehicleProcessingRecord.book_values_after_processing.isnot(None)
+                ).all()
 
             # Calculate total book value differences and insights using the refined aggregator
             total_book_value_mtd, mtd_insights = aggregate_book_value_insights_for_period(mtd_vehicles)
