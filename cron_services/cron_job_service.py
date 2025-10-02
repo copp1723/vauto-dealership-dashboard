@@ -29,6 +29,7 @@ class CronJobService:
         payload = {
             "type": "cron",
             "name": cron_job_data.name,
+            "ownerID": "tea-cva20nd2ng1s73ff6a1g",
             "repo": cron_job_data.repo_url,
             "branch": cron_job_data.branch,
             "schedule": cron_job_data.schedule,
