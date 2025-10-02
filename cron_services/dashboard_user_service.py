@@ -3,18 +3,14 @@ import hashlib
 import secrets
 from datetime import datetime
 from cron_models.cron_job import DealershipOnboard
+from database import User, UserRole, DatabaseManager
 
 
 class DashboardUserService:
-    """
-    Service for managing dashboard user creation.
-    This is a placeholder implementation - you'll want to integrate with your actual user management system.
-    """
+    """Service for managing dashboard user creation."""
 
     def __init__(self):
-        # In a real implementation, you'd connect to your user database here
-        # For now, this is a mock service that shows what data would be created
-        pass
+        self.db_manager = DatabaseManager()
 
     def _hash_password(self, password: str) -> str:
         """Hash password for storage (simplified example)"""
@@ -28,65 +24,68 @@ class DashboardUserService:
         return f"usr_{secrets.token_hex(8)}"
 
     async def create_dashboard_user(self, onboard_data: DealershipOnboard) -> Dict[str, Any]:
-        """
-        Create a new dashboard user for the dealership.
+        """Create a new dashboard user for the dealership in the database."""
 
-        In a real implementation, this would:
-        1. Connect to your user management system (database, auth service, etc.)
-        2. Create the user account with proper role/permissions
-        3. Send welcome email with login instructions
-        4. Set up any dealership-specific access controls
-        """
+        with self.db_manager.get_session() as session:
+            # Map dashboard_role to UserRole enum
+            role_map = {
+                "dealership_user": UserRole.USER,
+                "dealership_admin": UserRole.ADMIN,
+                "admin": UserRole.ADMIN,
+                "user": UserRole.USER
+            }
+            user_role = role_map.get(onboard_data.dashboard_role.lower(), UserRole.USER)
 
-        # Generate user data
-        user_id = self._generate_user_id()
-        hashed_password = self._hash_password(onboard_data.dashboard_password)
-        created_at = datetime.utcnow().isoformat()
+            # Create new user
+            new_user = User(
+                username=onboard_data.dashboard_username,
+                role=user_role.value,
+                is_active=True
+            )
+            new_user.set_password(onboard_data.dashboard_password)
 
-        # This would be your actual user creation logic
-        user_data = {
-            "id": user_id,
-            "username": onboard_data.dashboard_username,
-            "email": onboard_data.dashboard_email,
-            "first_name": onboard_data.dashboard_first_name,
-            "last_name": onboard_data.dashboard_last_name,
-            "role": onboard_data.dashboard_role,
-            "dealership_name": onboard_data.dealership_name,
-            "password_hash": hashed_password,  # Never store plain passwords
-            "status": "active",
-            "created_at": created_at,
-            "permissions": [
-                "view_dealership_data",
-                "view_reports",
-                "manage_inventory",
-                "view_cron_jobs"
-            ]
-        }
+            # Set empty store_ids for now (they can be assigned later by admins)
+            new_user.set_store_ids([])
 
-        return {
-            "success": True,
-            "user_id": user_id,
-            "username": onboard_data.dashboard_username,
-            "email": onboard_data.dashboard_email,
-            "full_name": f"{onboard_data.dashboard_first_name} {onboard_data.dashboard_last_name}",
-            "role": onboard_data.dashboard_role,
-            "dealership": onboard_data.dealership_name,
-            "created_at": created_at,
-            "status": "active",
-            "login_url": "https://your-dashboard.com/login",
-            "message": f"Dashboard user created successfully for {onboard_data.dealership_name}"
-        }
+            session.add(new_user)
+            session.commit()
+            session.refresh(new_user)
+
+            return {
+                "success": True,
+                "user_id": new_user.id,
+                "username": new_user.username,
+                "email": onboard_data.dashboard_email,  # Stored in form but not in DB
+                "full_name": f"{onboard_data.dashboard_first_name} {onboard_data.dashboard_last_name}",
+                "role": new_user.role_enum.value,
+                "dealership": onboard_data.dealership_name,
+                "created_at": new_user.created_at.isoformat(),
+                "status": "active",
+                "message": f"Dashboard user '{new_user.username}' created successfully for {onboard_data.dealership_name}. Email and name fields not stored (User model doesn't have these fields)."
+            }
 
     async def validate_user_data(self, onboard_data: DealershipOnboard) -> Dict[str, Any]:
-        """
-        Validate that the user data doesn't conflict with existing users.
-        """
+        """Validate that the user data doesn't conflict with existing users."""
 
         validation_results = {
             "valid": True,
             "conflicts": [],
             "warnings": []
         }
+
+        with self.db_manager.get_session() as session:
+            # Check if username already exists
+            existing_user = session.query(User).filter(
+                User.username == onboard_data.dashboard_username
+            ).first()
+
+            if existing_user:
+                validation_results["valid"] = False
+                validation_results["conflicts"].append({
+                    "field": "username",
+                    "value": onboard_data.dashboard_username,
+                    "message": f"Username '{onboard_data.dashboard_username}' is already taken"
+                })
 
         return validation_results
 
