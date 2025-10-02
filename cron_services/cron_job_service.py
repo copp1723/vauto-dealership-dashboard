@@ -30,12 +30,14 @@ class CronJobService:
             "type": "cron_job",
             "name": cron_job_data.name,
             "ownerID": "tea-cva20nd2ng1s73ff6a1g",
-            "repo": cron_job_data.repo_url,
-            "branch": cron_job_data.branch,
-            "schedule": cron_job_data.schedule,
-            "startCommand": cron_job_data.start_command,
-            "envVars": env_vars,
-            "runtime": "docker"
+            "serviceDetails": {
+                "repo": cron_job_data.repo_url,
+                "branch": cron_job_data.branch,
+                "schedule": cron_job_data.schedule,
+                "startCommand": cron_job_data.start_command,
+                "envVars": env_vars,
+                "runtime": "docker"
+            }
         }
 
         return payload
