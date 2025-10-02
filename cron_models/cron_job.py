@@ -52,12 +52,19 @@ class DealershipOnboard(BaseModel):
         return v
 
     @field_validator('am_time', 'pm_time')
-    def validate_time_format(cls, v):
+    def validate_time_format(cls, v: str) -> str:
         import re
-        time_pattern = r'^(1[0-2]|[1-9]):[0-5][0-9](AM|PM)$'
-        if not re.match(time_pattern, v.upper()):
+
+        cleaned = v.strip().upper().replace(" ", "")
+        time_pattern = r'^(0?[1-9]|1[0-2]):([0-5][0-9])(AM|PM)$'
+        match = re.match(time_pattern, cleaned)
+        if not match:
             raise ValueError('Time must be in format like "5:58AM" or "1:58PM"')
-        return v.upper()
+
+        hour = int(match.group(1))
+        minute = match.group(2)
+        period = match.group(3)
+        return f"{hour}:{minute}{period}"
 
 
 class CronJobCreate(BaseModel):
