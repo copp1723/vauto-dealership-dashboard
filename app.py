@@ -28,11 +28,13 @@ from database import get_database_manager, User, UserRole
 
 # Store normalization helpers for consistent friendly naming across the app
 STORE_TOKEN_REGEX = re.compile(
-    r'(kunes|chevrolet|chevy|cadillac|buick|gmc|ford|toyota|honda|hyundai|kia|nissan|vw|volkswagen|mazda|subaru|chrysler|dodge|jeep|ram|cdjr|autogroup|auto|group|mercedesbenz|madcity|mitsubishi|lakegeneva|oakcreek|greenfield|elkhorn|delavan|delevan|macomb|morrison|mt|carroll|antioch|hope|madison|janesville|stoughton|rockford|platteville|sterling|oregon|sycamore|belvidere|galesburg|woodstock|quincy|davenport|eastmoline|la|crosse|monroe|milwaukee|[a-z]+)'
+    r'(kunes|sames|patrick|chevrolet|chevy|cadillac|buick|gmc|ford|toyota|honda|hyundai|kia|nissan|vw|volkswagen|mazda|subaru|chrysler|dodge|jeep|ram|cdjr|autogroup|auto|group|mercedesbenz|madcity|mitsubishi|jaguar|landrover|lakegeneva|oakcreek|greenfield|elkhorn|delavan|delevan|macomb|morrison|mt|carroll|antioch|hope|madison|janesville|stoughton|rockford|platteville|sterling|oregon|sycamore|belvidere|galesburg|woodstock|quincy|davenport|eastmoline|la|crosse|monroe|milwaukee|bastrop|laredo|[a-z]+)'
 )
 
 STORE_TOKEN_DISPLAY = {
     'kunes': 'Kunes',
+    'sames': 'Sames',
+    'patrick': 'Patrick',
     'chevrolet': 'Chevrolet',
     'chevy': 'Chevy',
     'cadillac': 'Cadillac',
@@ -59,6 +61,8 @@ STORE_TOKEN_DISPLAY = {
     'mercedesbenz': 'Mercedes-Benz',
     'madcity': 'Mad City',
     'mitsubishi': 'Mitsubishi',
+    'jaguar': 'Jaguar',
+    'landrover': 'Land Rover',
     'lakegeneva': 'Lake Geneva',
     'oakcreek': 'Oak Creek',
     'greenfield': 'Greenfield',
@@ -90,6 +94,8 @@ STORE_TOKEN_DISPLAY = {
     'crosse': 'Crosse',
     'monroe': 'Monroe',
     'milwaukee': 'Milwaukee',
+    'bastrop': 'Bastrop',
+    'laredo': 'Laredo',
 }
 
 STORE_LOCATION_TOKENS = {
@@ -122,6 +128,8 @@ STORE_LOCATION_TOKENS = {
     'Crosse',
     'Monroe',
     'Milwaukee',
+    'Bastrop',
+    'Laredo',
 }
 
 STORE_ID_OVERRIDES = {
@@ -138,6 +146,9 @@ STORE_ID_OVERRIDES = {
     'kunesautogroupquincy': 'Kunes Auto Group Quincy',
     'kunesautogroupdavenport': 'Kunes Auto Group Davenport',
     'kunesautogroupeastmoline': 'Kunes Auto Group East Moline',
+    'samesford': 'Sames Ford',
+    'samesbastropchevrolet': 'Sames Bastrop Chevrolet',
+    'patrickjaguarlandrover': 'Patrick Jaguar Land Rover',
 }
 
 
